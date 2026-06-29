@@ -532,6 +532,12 @@ static void persist_paint_usb(void) {
     if (!persist_usb.active || persist_usb.position >= STRIP_NUM_PIXELS)
         return;
 
+    // USB connection state / endpoints are a central-only concept: endpoints.c is
+    // built only for (NOT CONFIG_ZMK_SPLIT) || CONFIG_ZMK_SPLIT_ROLE_CENTRAL, so
+    // zmk_endpoints_selected() does not exist on the split peripheral. Guard the
+    // body with the same condition; on the peripheral this indicator is a no-op
+    // (the peripheral has no USB host role to report anyway).
+#if (!IS_ENABLED(CONFIG_ZMK_SPLIT)) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
     struct zmk_endpoint_instance active_endpoint = zmk_endpoints_selected();
     enum zmk_usb_conn_state usb_state = zmk_usb_get_conn_state();
 
@@ -544,6 +550,7 @@ static void persist_paint_usb(void) {
     } else { // ZMK_USB_CONN_NONE
         status_pixels[persist_usb.position] = PERSIST_RGB(0x6b, 0x1f, 0xce); // disconnected: lilac
     }
+#endif
 }
 
 // Unified status layer: indicators (if any), the persistent relocatable
