@@ -558,7 +558,19 @@ static void persist_paint_usb(void) {
 // overrides set through the &pixel behavior. Runs regardless of whether any
 // indicators are configured, so all of these show on every board.
 static int zmk_led_generate_status(void) {
-    int blend = zmk_led_generate_indicators();
+    // Only paint the Magic/status indicators (battery, BLE, layer) when the
+    // status display is genuinely active (RGB_STATUS / Magic pressed). A
+    // persistent &pixel override or relocatable indicator must NOT drag the
+    // whole indicator display along — otherwise setting one override pixel on
+    // the central lights up all the battery/BLE indicators too.
+    int blend = 0;
+    if (state.status_active) {
+        blend = zmk_led_generate_indicators();
+    } else {
+        // No Magic display: start from a clean status buffer so only the
+        // persistent layers below are shown.
+        memset(status_pixels, 0, sizeof(status_pixels));
+    }
 
     bool painted_persist = false;
 

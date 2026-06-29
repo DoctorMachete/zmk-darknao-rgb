@@ -172,41 +172,51 @@ static ssize_t split_svc_update_layers(struct bt_conn *conn, const struct bt_gat
 
 #if IS_ENABLED(CONFIG_ZMK_RGB_UNDERGLOW)
 
-// Buffered copy of the most recent pixel command, applied off the BT RX thread.
-static struct {
+// Pixel commands can arrive in rapid bursts (a listener's enter/exit pulses
+// several &pixel bindings at once). A single shared buffer + single k_work
+// would drop commands (last-write-wins / coalesced submits), causing clears to
+// be lost and overrides to go stale. Use a message queue so EVERY command is
+// processed in order, none dropped.
+struct rgb_pixel_msg {
     uint8_t op;
     uint8_t position;
     uint8_t count;
     uint32_t color;
     uint8_t positions[ZMK_SPLIT_RGB_PIXEL_MAX_POSITIONS];
-} rgb_pixel_cmd;
+};
+
+K_MSGQ_DEFINE(rgb_pixel_msgq, sizeof(struct rgb_pixel_msg), 16, 4);
 
 static void split_svc_update_rgb_pixel_callback(struct k_work *work) {
-    switch (rgb_pixel_cmd.op) {
-    case ZMK_SPLIT_RGB_PIXEL_OP_SET:
-        zmk_rgb_underglow_set_pixel(rgb_pixel_cmd.position, (int32_t)rgb_pixel_cmd.color);
-        break;
-    case ZMK_SPLIT_RGB_PIXEL_OP_CLEAR_ONE:
-        zmk_rgb_underglow_set_pixel(rgb_pixel_cmd.position, -1);
-        break;
-    case ZMK_SPLIT_RGB_PIXEL_OP_CLEAR_ALL:
-        zmk_rgb_underglow_clear_pixels();
-        break;
-    case ZMK_SPLIT_RGB_PIXEL_OP_BATTERY:
-        zmk_rgb_underglow_set_battery_indicator(rgb_pixel_cmd.positions, rgb_pixel_cmd.count);
-        break;
-    case ZMK_SPLIT_RGB_PIXEL_OP_BATTERY_CLEAR:
-        zmk_rgb_underglow_clear_battery_indicator();
-        break;
-    case ZMK_SPLIT_RGB_PIXEL_OP_USB:
-        zmk_rgb_underglow_set_usb_indicator(rgb_pixel_cmd.position);
-        break;
-    case ZMK_SPLIT_RGB_PIXEL_OP_USB_CLEAR:
-        zmk_rgb_underglow_clear_usb_indicator();
-        break;
-    default:
-        LOG_WRN("Unknown RGB pixel op %d", rgb_pixel_cmd.op);
-        break;
+    struct rgb_pixel_msg msg;
+    // Drain the whole queue; apply each command in arrival order.
+    while (k_msgq_get(&rgb_pixel_msgq, &msg, K_NO_WAIT) == 0) {
+        switch (msg.op) {
+        case ZMK_SPLIT_RGB_PIXEL_OP_SET:
+            zmk_rgb_underglow_set_pixel(msg.position, (int32_t)msg.color);
+            break;
+        case ZMK_SPLIT_RGB_PIXEL_OP_CLEAR_ONE:
+            zmk_rgb_underglow_set_pixel(msg.position, -1);
+            break;
+        case ZMK_SPLIT_RGB_PIXEL_OP_CLEAR_ALL:
+            zmk_rgb_underglow_clear_pixels();
+            break;
+        case ZMK_SPLIT_RGB_PIXEL_OP_BATTERY:
+            zmk_rgb_underglow_set_battery_indicator(msg.positions, msg.count);
+            break;
+        case ZMK_SPLIT_RGB_PIXEL_OP_BATTERY_CLEAR:
+            zmk_rgb_underglow_clear_battery_indicator();
+            break;
+        case ZMK_SPLIT_RGB_PIXEL_OP_USB:
+            zmk_rgb_underglow_set_usb_indicator(msg.position);
+            break;
+        case ZMK_SPLIT_RGB_PIXEL_OP_USB_CLEAR:
+            zmk_rgb_underglow_clear_usb_indicator();
+            break;
+        default:
+            LOG_WRN("Unknown RGB pixel op %d", msg.op);
+            break;
+        }
     }
 }
 
@@ -220,11 +230,20 @@ static ssize_t split_svc_update_rgb_pixel(struct bt_conn *conn, const struct bt_
         return BT_GATT_ERR(BT_ATT_ERR_INVALID_OFFSET);
     }
 
-    memset(&rgb_pixel_cmd, 0, sizeof(rgb_pixel_cmd));
-    memcpy(&rgb_pixel_cmd, buf, MIN(len, sizeof(rgb_pixel_cmd)));
+    struct rgb_pixel_msg msg;
+    memset(&msg, 0, sizeof(msg));
+    memcpy(&msg, buf, MIN(len, sizeof(msg)));
 
-    if (rgb_pixel_cmd.count > ZMK_SPLIT_RGB_PIXEL_MAX_POSITIONS) {
-        rgb_pixel_cmd.count = ZMK_SPLIT_RGB_PIXEL_MAX_POSITIONS;
+    if (msg.count > ZMK_SPLIT_RGB_PIXEL_MAX_POSITIONS) {
+        msg.count = ZMK_SPLIT_RGB_PIXEL_MAX_POSITIONS;
+    }
+
+    // Enqueue; if the queue is somehow full, drop the oldest to make room so a
+    // recent command (often a clear) is not lost.
+    if (k_msgq_put(&rgb_pixel_msgq, &msg, K_NO_WAIT) != 0) {
+        struct rgb_pixel_msg discard;
+        k_msgq_get(&rgb_pixel_msgq, &discard, K_NO_WAIT);
+        k_msgq_put(&rgb_pixel_msgq, &msg, K_NO_WAIT);
     }
 
     k_work_submit(&split_svc_update_rgb_pixel_work);
