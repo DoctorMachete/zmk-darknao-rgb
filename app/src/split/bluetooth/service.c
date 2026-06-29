@@ -32,6 +32,10 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/events/hid_indicators_changed.h>
 #endif // IS_ENABLED(CONFIG_ZMK_SPLIT_PERIPHERAL_HID_INDICATORS)
 #include <zmk/split/peripheral_layers.h>
+#include <zmk/split/transport/types.h>
+#if IS_ENABLED(CONFIG_ZMK_RGB_UNDERGLOW)
+#include <zmk/rgb_underglow.h>
+#endif
 
 #include <zmk/events/sensor_event.h>
 #include <zmk/sensors.h>
@@ -166,6 +170,70 @@ static ssize_t split_svc_update_layers(struct bt_conn *conn, const struct bt_gat
     return len;
 }
 
+#if IS_ENABLED(CONFIG_ZMK_RGB_UNDERGLOW)
+
+// Buffered copy of the most recent pixel command, applied off the BT RX thread.
+static struct {
+    uint8_t op;
+    uint8_t position;
+    uint8_t count;
+    uint32_t color;
+    uint8_t positions[ZMK_SPLIT_RGB_PIXEL_MAX_POSITIONS];
+} rgb_pixel_cmd;
+
+static void split_svc_update_rgb_pixel_callback(struct k_work *work) {
+    switch (rgb_pixel_cmd.op) {
+    case ZMK_SPLIT_RGB_PIXEL_OP_SET:
+        zmk_rgb_underglow_set_pixel(rgb_pixel_cmd.position, (int32_t)rgb_pixel_cmd.color);
+        break;
+    case ZMK_SPLIT_RGB_PIXEL_OP_CLEAR_ONE:
+        zmk_rgb_underglow_set_pixel(rgb_pixel_cmd.position, -1);
+        break;
+    case ZMK_SPLIT_RGB_PIXEL_OP_CLEAR_ALL:
+        zmk_rgb_underglow_clear_pixels();
+        break;
+    case ZMK_SPLIT_RGB_PIXEL_OP_BATTERY:
+        zmk_rgb_underglow_set_battery_indicator(rgb_pixel_cmd.positions, rgb_pixel_cmd.count);
+        break;
+    case ZMK_SPLIT_RGB_PIXEL_OP_BATTERY_CLEAR:
+        zmk_rgb_underglow_clear_battery_indicator();
+        break;
+    case ZMK_SPLIT_RGB_PIXEL_OP_USB:
+        zmk_rgb_underglow_set_usb_indicator(rgb_pixel_cmd.position);
+        break;
+    case ZMK_SPLIT_RGB_PIXEL_OP_USB_CLEAR:
+        zmk_rgb_underglow_clear_usb_indicator();
+        break;
+    default:
+        LOG_WRN("Unknown RGB pixel op %d", rgb_pixel_cmd.op);
+        break;
+    }
+}
+
+static K_WORK_DEFINE(split_svc_update_rgb_pixel_work, split_svc_update_rgb_pixel_callback);
+
+static ssize_t split_svc_update_rgb_pixel(struct bt_conn *conn, const struct bt_gatt_attr *attr,
+                                          const void *buf, uint16_t len, uint16_t offset,
+                                          uint8_t flags) {
+    // Expect a whole struct in a single write (write-without-response).
+    if (offset != 0) {
+        return BT_GATT_ERR(BT_ATT_ERR_INVALID_OFFSET);
+    }
+
+    memset(&rgb_pixel_cmd, 0, sizeof(rgb_pixel_cmd));
+    memcpy(&rgb_pixel_cmd, buf, MIN(len, sizeof(rgb_pixel_cmd)));
+
+    if (rgb_pixel_cmd.count > ZMK_SPLIT_RGB_PIXEL_MAX_POSITIONS) {
+        rgb_pixel_cmd.count = ZMK_SPLIT_RGB_PIXEL_MAX_POSITIONS;
+    }
+
+    k_work_submit(&split_svc_update_rgb_pixel_work);
+
+    return len;
+}
+
+#endif // IS_ENABLED(CONFIG_ZMK_RGB_UNDERGLOW)
+
 #if IS_ENABLED(CONFIG_ZMK_INPUT_SPLIT)
 
 static void split_input_events_ccc(const struct bt_gatt_attr *attr, uint16_t value) {
@@ -235,7 +303,13 @@ BT_GATT_SERVICE_DEFINE(
 
     BT_GATT_CHARACTERISTIC(BT_UUID_DECLARE_128(ZMK_SPLIT_BT_UPDATE_LAYERS_UUID),
                            BT_GATT_CHRC_WRITE_WITHOUT_RESP, BT_GATT_PERM_WRITE_ENCRYPT, NULL,
-                           split_svc_update_layers, NULL), );
+                           split_svc_update_layers, NULL),
+#if IS_ENABLED(CONFIG_ZMK_RGB_UNDERGLOW)
+    BT_GATT_CHARACTERISTIC(BT_UUID_DECLARE_128(ZMK_SPLIT_BT_UPDATE_RGB_PIXEL_UUID),
+                           BT_GATT_CHRC_WRITE_WITHOUT_RESP, BT_GATT_PERM_WRITE_ENCRYPT, NULL,
+                           split_svc_update_rgb_pixel, NULL),
+#endif
+);
 
 K_THREAD_STACK_DEFINE(service_q_stack, CONFIG_ZMK_SPLIT_BLE_PERIPHERAL_STACK_SIZE);
 

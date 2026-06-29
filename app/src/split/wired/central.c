@@ -187,6 +187,8 @@ static ssize_t get_payload_data_size(const struct zmk_split_transport_central_co
         return sizeof(cmd->data.set_hid_indicators);
     case ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_RGB_LAYERS:
         return sizeof(cmd->data.set_rgb_layers);
+    case ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_RGB_PIXEL:
+        return sizeof(cmd->data.set_rgb_pixel);
     default:
         return -ENOTSUP;
     }

@@ -30,4 +30,8 @@
 #include <behaviors/mouse_keys.dtsi>
 #include <behaviors/ug_color.dtsi>
 #include <behaviors/ug_indicators.dtsi>
+#include <behaviors/pixel_color.dtsi>
+/* Secondary indicators (battery/USB) — disabled for now; re-enable when wanted.
+#include <behaviors/status_indicators.dtsi>
+*/
 #include <behaviors/ug_battery.dtsi>

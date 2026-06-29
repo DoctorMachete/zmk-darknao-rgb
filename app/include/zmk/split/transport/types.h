@@ -67,7 +67,21 @@ enum zmk_split_transport_central_command_type {
     ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_PHYSICAL_LAYOUT,
     ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_HID_INDICATORS,
     ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_RGB_LAYERS,
+    ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_RGB_PIXEL,
 } __packed;
+
+// Operations carried by a SET_RGB_PIXEL command.
+enum zmk_split_rgb_pixel_op {
+    ZMK_SPLIT_RGB_PIXEL_OP_SET = 0,           // set one pixel override (position, color)
+    ZMK_SPLIT_RGB_PIXEL_OP_CLEAR_ONE = 1,     // clear one pixel override (position)
+    ZMK_SPLIT_RGB_PIXEL_OP_CLEAR_ALL = 2,     // clear all pixel overrides
+    ZMK_SPLIT_RGB_PIXEL_OP_BATTERY = 3,       // battery block: positions[0..count-1]
+    ZMK_SPLIT_RGB_PIXEL_OP_BATTERY_CLEAR = 4, // disable battery block
+    ZMK_SPLIT_RGB_PIXEL_OP_USB = 5,           // usb indicator at position
+    ZMK_SPLIT_RGB_PIXEL_OP_USB_CLEAR = 6,     // disable usb indicator
+} __packed;
+
+#define ZMK_SPLIT_RGB_PIXEL_MAX_POSITIONS 8
 
 struct zmk_split_transport_central_command {
     enum zmk_split_transport_central_command_type type;
@@ -92,5 +106,13 @@ struct zmk_split_transport_central_command {
         struct {
             uint32_t layers;
         } set_rgb_layers;
+
+        struct {
+            uint8_t op;       // enum zmk_split_rgb_pixel_op
+            uint8_t position; // local strip index on the peripheral
+            uint8_t count;    // number of valid entries in positions (battery op)
+            uint32_t color;   // 0xRRGGBB (set op)
+            uint8_t positions[ZMK_SPLIT_RGB_PIXEL_MAX_POSITIONS];
+        } set_rgb_pixel;
     } data;
 } __packed;

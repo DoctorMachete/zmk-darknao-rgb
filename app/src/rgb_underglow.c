@@ -98,6 +98,33 @@ static const struct device *led_strip;
 static struct led_rgb pixels[STRIP_NUM_PIXELS];
 static struct led_rgb status_pixels[STRIP_NUM_PIXELS];
 
+// Persistent per-pixel override layer (set via &pixel behavior). Drawn on top
+// of underglow + indicators, survives underglow on/off, cleared explicitly.
+static struct led_rgb pixel_overrides[STRIP_NUM_PIXELS];
+static bool pixel_override_active[STRIP_NUM_PIXELS];
+static bool any_pixel_override;
+
+// Persistent, relocatable status indicators (battery block + USB output).
+// Unlike the fixed-color overrides above, these recompute their colors live on
+// every status refresh, so they track the current battery level / USB state.
+// They are author-placed (positions come from the keymap) and persist across
+// underglow on/off until explicitly disabled.
+#define PERSIST_BAT_MAX_PIXELS 8
+static struct {
+    bool active;
+    uint8_t count;
+    uint8_t positions[PERSIST_BAT_MAX_PIXELS];
+} persist_battery;
+
+static struct {
+    bool active;
+    uint8_t position;
+} persist_usb;
+
+static inline bool any_persist_indicator(void) {
+    return persist_battery.active || persist_usb.active;
+}
+
 static struct rgb_underglow_state state;
 
 #if IS_ENABLED(CONFIG_ZMK_RGB_UNDERGLOW_EXT_POWER)
@@ -244,7 +271,7 @@ static void zmk_led_write_pixels(void) {
     bat0 = 100;
 #endif
 
-    if (state.status_active) {
+    if (state.status_active || any_pixel_override || any_persist_indicator()) {
         blend = zmk_led_generate_status();
     }
 
@@ -315,7 +342,7 @@ static void zmk_led_write_pixels(void) {
 #endif
 
 #if !UNDERGLOW_INDICATORS_ENABLED
-static int zmk_led_generate_status(void) { return 0; }
+static int zmk_led_generate_indicators(void) { return 0; }
 #else
 
 const uint8_t underglow_layer_state[] = DT_PROP(UNDERGLOW_INDICATORS, layer_state);
@@ -368,7 +395,7 @@ static void zmk_led_fill(struct led_rgb color, const uint8_t *addresses, size_t 
 #define ZMK_LED_CAPSLOCK_BIT BIT(1)
 #define ZMK_LED_SCROLLLOCK_BIT BIT(2)
 
-static int zmk_led_generate_status(void) {
+static int zmk_led_generate_indicators(void) {
     for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
         status_pixels[i] = (struct led_rgb){r : 0, g : 0, b : 0};
     }
@@ -458,6 +485,104 @@ static int zmk_led_generate_status(void) {
     return blend;
 }
 #endif // underglow_indicators exists
+
+// Self-contained colors for the persistent indicators, so they work even on
+// boards without an underglow-indicators node (where the constants above are
+// not compiled). Same RGB values and brightness scaling as the indicators.
+#define PERSIST_RGB(R, G, B)                                                                        \
+    ((struct led_rgb){                                                                              \
+        r : (CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX * (R)) / 0xff,                                        \
+        g : (CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX * (G)) / 0xff,                                        \
+        b : (CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX * (B)) / 0xff                                         \
+    })
+
+static void persist_paint_battery(void) {
+#if IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING)
+    if (!persist_battery.active || persist_battery.count == 0)
+        return;
+
+    int bat_level = zmk_battery_state_of_charge();
+
+    struct led_rgb bat_colour;
+    if (bat_level > 40) {
+        bat_colour = PERSIST_RGB(0x00, 0xff, 0x00); // green
+    } else if (bat_level > 20) {
+        bat_colour = PERSIST_RGB(0xff, 0xff, 0x00); // yellow
+    } else {
+        bat_colour = PERSIST_RGB(0xff, 0x00, 0x00); // red
+    }
+
+    int n = persist_battery.count;
+    for (int i = 0; i < n; i++) {
+        uint8_t pos = persist_battery.positions[i];
+        if (pos >= STRIP_NUM_PIXELS)
+            continue;
+        // Light this segment if the charge reaches its threshold. With n
+        // segments the thresholds are evenly spread 0..100 (segment 0 always
+        // lights, the last needs 100%).
+        int min_level = (n > 1) ? (i * 100) / (n - 1) : 0;
+        if (bat_level >= min_level) {
+            status_pixels[pos] = bat_colour;
+        }
+    }
+#endif // CONFIG_ZMK_BATTERY_REPORTING
+}
+
+static void persist_paint_usb(void) {
+    if (!persist_usb.active || persist_usb.position >= STRIP_NUM_PIXELS)
+        return;
+
+    struct zmk_endpoint_instance active_endpoint = zmk_endpoints_selected();
+    enum zmk_usb_conn_state usb_state = zmk_usb_get_conn_state();
+
+    if (usb_state == ZMK_USB_CONN_HID && active_endpoint.transport == ZMK_TRANSPORT_USB) {
+        status_pixels[persist_usb.position] = PERSIST_RGB(0xff, 0xff, 0xff); // connected + active: white
+    } else if (usb_state == ZMK_USB_CONN_HID) {
+        status_pixels[persist_usb.position] = PERSIST_RGB(0x00, 0xff, 0x68); // connected: dull green
+    } else if (usb_state == ZMK_USB_CONN_POWERED) {
+        status_pixels[persist_usb.position] = PERSIST_RGB(0xff, 0x00, 0x00); // powered: red
+    } else { // ZMK_USB_CONN_NONE
+        status_pixels[persist_usb.position] = PERSIST_RGB(0x6b, 0x1f, 0xce); // disconnected: lilac
+    }
+}
+
+// Unified status layer: indicators (if any), the persistent relocatable
+// indicators (battery block + USB output), and the persistent per-pixel
+// overrides set through the &pixel behavior. Runs regardless of whether any
+// indicators are configured, so all of these show on every board.
+static int zmk_led_generate_status(void) {
+    int blend = zmk_led_generate_indicators();
+
+    bool painted_persist = false;
+
+    // Relocatable live indicators paint on top of any fixed indicators.
+    if (persist_battery.active) {
+        persist_paint_battery();
+        painted_persist = true;
+    }
+    if (persist_usb.active) {
+        persist_paint_usb();
+        painted_persist = true;
+    }
+
+    // Fixed-color overrides win over everything (highest priority).
+    if (any_pixel_override) {
+        for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
+            if (pixel_override_active[i]) {
+                status_pixels[i] = pixel_overrides[i];
+            }
+        }
+        painted_persist = true;
+    }
+
+    // Anything persistent must show at full opacity, not faded by the
+    // indicator fade-in/out envelope.
+    if (painted_persist && blend < 256) {
+        blend = 256;
+    }
+
+    return blend;
+}
 
 static inline struct led_rgb hue_sat(int hue, int sat) {
     struct zmk_led_hsb hsb = state.color;
@@ -611,7 +736,8 @@ void zmk_rgb_set_ext_power(void) {
         LOG_ERR("Unable to examine EXT_POWER: %d", c_power);
         c_power = 0;
     }
-    int desired_state = state.on || state.status_active;
+    int desired_state = state.on || state.status_active || any_pixel_override ||
+                        any_persist_indicator();
 
 #if IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING)
     // force power off, when battery low (<10%)
@@ -870,12 +996,21 @@ K_WORK_DEFINE(underglow_write_work, zmk_led_write_pixels_work);
 K_TIMER_DEFINE(underglow_status_update_timer, zmk_rgb_underglow_status_update, NULL);
 
 static void zmk_rgb_underglow_status_update(struct k_timer *timer) {
-    if (!state.status_active)
-        return;
-    state.status_animation_step++;
-    if (state.status_animation_step > (10000 / 25)) {
-        state.status_active = false;
+    bool persist = any_persist_indicator();
+
+    if (!state.status_active && !persist) {
         k_timer_stop(&underglow_status_update_timer);
+        return;
+    }
+
+    if (state.status_active) {
+        state.status_animation_step++;
+        if (state.status_animation_step > (10000 / 25)) {
+            state.status_active = false;
+            // Don't stop the timer if persistent indicators still need refreshing.
+            if (!persist)
+                k_timer_stop(&underglow_status_update_timer);
+        }
     }
     if (!k_work_is_pending(&underglow_write_work))
         k_work_submit(&underglow_write_work);
@@ -902,6 +1037,137 @@ int zmk_rgb_underglow_status(void) {
 
     k_timer_start(&underglow_status_update_timer, K_NO_WAIT, K_MSEC(25));
 
+    return 0;
+}
+
+int zmk_rgb_underglow_set_pixel(uint32_t position, int32_t color) {
+    if (!led_strip)
+        return -ENODEV;
+
+    if (position >= STRIP_NUM_PIXELS) {
+        LOG_WRN("pixel override position %u out of range (strip is %d pixels, local half only)",
+                position, STRIP_NUM_PIXELS);
+        return -EINVAL;
+    }
+
+    if (color < 0) {
+        // Clear this override.
+        if (pixel_override_active[position]) {
+            pixel_override_active[position] = false;
+            pixel_overrides[position] = (struct led_rgb){r : 0, g : 0, b : 0};
+        }
+    } else {
+        uint8_t r = (color & 0xFF0000) >> 16;
+        uint8_t g = (color & 0x00FF00) >> 8;
+        uint8_t b = (color & 0x0000FF);
+        pixel_overrides[position] = (struct led_rgb){
+            r : (CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX * r) / 0xff,
+            g : (CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX * g) / 0xff,
+            b : (CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX * b) / 0xff
+        };
+        pixel_override_active[position] = true;
+    }
+
+    // Recompute the "any override" flag.
+    any_pixel_override = false;
+    for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
+        if (pixel_override_active[i]) {
+            any_pixel_override = true;
+            break;
+        }
+    }
+
+    // Make sure power is available and push the new buffer to the strip now,
+    // even if underglow is currently off.
+    zmk_rgb_set_ext_power();
+    zmk_led_write_pixels();
+
+    return 0;
+}
+
+int zmk_rgb_underglow_clear_pixels(void) {
+    if (!led_strip)
+        return -ENODEV;
+
+    memset(pixel_overrides, 0, sizeof(pixel_overrides));
+    memset(pixel_override_active, 0, sizeof(pixel_override_active));
+    any_pixel_override = false;
+
+    zmk_led_write_pixels();
+    zmk_rgb_set_ext_power();
+
+    return 0;
+}
+
+uint8_t zmk_rgb_underglow_pixel_count(void) { return STRIP_NUM_PIXELS; }
+
+// Ensure the status-update timer is running so persistent indicators refresh
+// (and get an immediate first paint), then push the current frame now.
+static void persist_indicator_kick(void) {
+    zmk_rgb_set_ext_power();
+    zmk_led_write_pixels();
+    k_timer_start(&underglow_status_update_timer, K_NO_WAIT, K_MSEC(25));
+}
+
+int zmk_rgb_underglow_set_battery_indicator(const uint8_t *positions, uint8_t count) {
+    if (!led_strip)
+        return -ENODEV;
+
+    if (count == 0 || positions == NULL) {
+        // Disable.
+        persist_battery.active = false;
+        persist_battery.count = 0;
+        persist_indicator_kick();
+        return 0;
+    }
+
+    if (count > PERSIST_BAT_MAX_PIXELS) {
+        LOG_WRN("battery indicator: %u positions requested, clamping to %d", count,
+                PERSIST_BAT_MAX_PIXELS);
+        count = PERSIST_BAT_MAX_PIXELS;
+    }
+
+    for (uint8_t i = 0; i < count; i++) {
+        if (positions[i] >= STRIP_NUM_PIXELS) {
+            LOG_WRN("battery indicator position %u out of range (strip is %d, local half only)",
+                    positions[i], STRIP_NUM_PIXELS);
+        }
+        persist_battery.positions[i] = positions[i];
+    }
+    persist_battery.count = count;
+    persist_battery.active = true;
+
+    persist_indicator_kick();
+    return 0;
+}
+
+int zmk_rgb_underglow_clear_battery_indicator(void) {
+    return zmk_rgb_underglow_set_battery_indicator(NULL, 0);
+}
+
+int zmk_rgb_underglow_set_usb_indicator(uint32_t position) {
+    if (!led_strip)
+        return -ENODEV;
+
+    if (position >= STRIP_NUM_PIXELS) {
+        LOG_WRN("usb indicator position %u out of range (strip is %d, local half only)", position,
+                STRIP_NUM_PIXELS);
+        return -EINVAL;
+    }
+
+    persist_usb.position = position;
+    persist_usb.active = true;
+
+    persist_indicator_kick();
+    return 0;
+}
+
+int zmk_rgb_underglow_clear_usb_indicator(void) {
+    if (!led_strip)
+        return -ENODEV;
+
+    persist_usb.active = false;
+    persist_indicator_kick();
     return 0;
 }
 

@@ -22,6 +22,10 @@
 #include <zmk/events/hid_indicators_changed.h>
 #endif
 #include <zmk/events/split_peripheral_layer_changed.h>
+#if IS_ENABLED(CONFIG_ZMK_RGB_UNDERGLOW)
+#include <zmk/rgb_underglow.h>
+#include <zmk/split/transport/types.h>
+#endif
 
 #include <zephyr/init.h>
 #include <zephyr/logging/log.h>
@@ -71,6 +75,32 @@ int zmk_split_transport_peripheral_command_handler(
         return raise_zmk_split_peripheral_layer_changed(
             (struct zmk_split_peripheral_layer_changed){.layers = cmd.data.set_rgb_layers.layers});
     }
+#if IS_ENABLED(CONFIG_ZMK_RGB_UNDERGLOW)
+    case ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_RGB_PIXEL: {
+        const uint8_t op = cmd.data.set_rgb_pixel.op;
+        switch (op) {
+        case ZMK_SPLIT_RGB_PIXEL_OP_SET:
+            return zmk_rgb_underglow_set_pixel(cmd.data.set_rgb_pixel.position,
+                                               (int32_t)cmd.data.set_rgb_pixel.color);
+        case ZMK_SPLIT_RGB_PIXEL_OP_CLEAR_ONE:
+            return zmk_rgb_underglow_set_pixel(cmd.data.set_rgb_pixel.position, -1);
+        case ZMK_SPLIT_RGB_PIXEL_OP_CLEAR_ALL:
+            return zmk_rgb_underglow_clear_pixels();
+        case ZMK_SPLIT_RGB_PIXEL_OP_BATTERY:
+            return zmk_rgb_underglow_set_battery_indicator(cmd.data.set_rgb_pixel.positions,
+                                                           cmd.data.set_rgb_pixel.count);
+        case ZMK_SPLIT_RGB_PIXEL_OP_BATTERY_CLEAR:
+            return zmk_rgb_underglow_clear_battery_indicator();
+        case ZMK_SPLIT_RGB_PIXEL_OP_USB:
+            return zmk_rgb_underglow_set_usb_indicator(cmd.data.set_rgb_pixel.position);
+        case ZMK_SPLIT_RGB_PIXEL_OP_USB_CLEAR:
+            return zmk_rgb_underglow_clear_usb_indicator();
+        default:
+            LOG_WRN("Unknown RGB pixel op %d", op);
+            return -ENOTSUP;
+        }
+    }
+#endif
     default:
         LOG_WRN("Unhandled command type %d", cmd.type);
         return -ENOTSUP;

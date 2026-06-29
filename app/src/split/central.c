@@ -186,6 +186,93 @@ int zmk_split_central_update_layers(uint32_t new_layers) {
     return 0;
 }
 
+// Send a pre-built SET_RGB_PIXEL command to all connected peripherals.
+static int zmk_split_central_send_rgb_pixel(struct zmk_split_transport_central_command command) {
+    if (!active_transport || !active_transport->api ||
+        !active_transport->api->get_available_source_ids || !active_transport->api->send_command) {
+        return -ENODEV;
+    }
+
+    uint8_t source_ids[ZMK_SPLIT_CENTRAL_PERIPHERAL_COUNT];
+    int ret = active_transport->api->get_available_source_ids(source_ids);
+    if (ret < 0) {
+        return ret;
+    }
+
+    for (size_t i = 0; i < ret; i++) {
+        int err = active_transport->api->send_command(source_ids[i], command);
+        if (err < 0) {
+            return err;
+        }
+    }
+
+    return 0;
+}
+
+int zmk_split_central_set_pixel(uint8_t position, uint32_t color) {
+    struct zmk_split_transport_central_command command = {
+        .type = ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_RGB_PIXEL,
+        .data = {.set_rgb_pixel = {.op = ZMK_SPLIT_RGB_PIXEL_OP_SET,
+                                   .position = position,
+                                   .color = color}},
+    };
+    return zmk_split_central_send_rgb_pixel(command);
+}
+
+int zmk_split_central_clear_pixel(uint8_t position) {
+    struct zmk_split_transport_central_command command = {
+        .type = ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_RGB_PIXEL,
+        .data = {.set_rgb_pixel = {.op = ZMK_SPLIT_RGB_PIXEL_OP_CLEAR_ONE, .position = position}},
+    };
+    return zmk_split_central_send_rgb_pixel(command);
+}
+
+int zmk_split_central_clear_all_pixels(void) {
+    struct zmk_split_transport_central_command command = {
+        .type = ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_RGB_PIXEL,
+        .data = {.set_rgb_pixel = {.op = ZMK_SPLIT_RGB_PIXEL_OP_CLEAR_ALL}},
+    };
+    return zmk_split_central_send_rgb_pixel(command);
+}
+
+int zmk_split_central_set_battery_indicator(const uint8_t *positions, uint8_t count) {
+    if (count > ZMK_SPLIT_RGB_PIXEL_MAX_POSITIONS) {
+        count = ZMK_SPLIT_RGB_PIXEL_MAX_POSITIONS;
+    }
+    struct zmk_split_transport_central_command command = {
+        .type = ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_RGB_PIXEL,
+        .data = {.set_rgb_pixel = {.op = ZMK_SPLIT_RGB_PIXEL_OP_BATTERY, .count = count}},
+    };
+    for (uint8_t i = 0; i < count; i++) {
+        command.data.set_rgb_pixel.positions[i] = positions[i];
+    }
+    return zmk_split_central_send_rgb_pixel(command);
+}
+
+int zmk_split_central_clear_battery_indicator(void) {
+    struct zmk_split_transport_central_command command = {
+        .type = ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_RGB_PIXEL,
+        .data = {.set_rgb_pixel = {.op = ZMK_SPLIT_RGB_PIXEL_OP_BATTERY_CLEAR}},
+    };
+    return zmk_split_central_send_rgb_pixel(command);
+}
+
+int zmk_split_central_set_usb_indicator(uint8_t position) {
+    struct zmk_split_transport_central_command command = {
+        .type = ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_RGB_PIXEL,
+        .data = {.set_rgb_pixel = {.op = ZMK_SPLIT_RGB_PIXEL_OP_USB, .position = position}},
+    };
+    return zmk_split_central_send_rgb_pixel(command);
+}
+
+int zmk_split_central_clear_usb_indicator(void) {
+    struct zmk_split_transport_central_command command = {
+        .type = ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_RGB_PIXEL,
+        .data = {.set_rgb_pixel = {.op = ZMK_SPLIT_RGB_PIXEL_OP_USB_CLEAR}},
+    };
+    return zmk_split_central_send_rgb_pixel(command);
+}
+
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING)
 
 int zmk_split_central_get_peripheral_battery_level(uint8_t source, uint8_t *level) {
