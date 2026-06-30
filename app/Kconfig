@@ -349,6 +349,15 @@ config EXPERIMENTAL_RGB_LAYER
     bool "Experimental per-key per-layer RGB underglow"
     default n
 
+config ZMK_MAGIC_INDICATOR
+    bool "Relocatable BLE/USB status indicators (&magic_indicator_*)"
+    default n
+    help
+      Adds &magic_indicator_on / _off / _clear behaviors that paint the native
+      Magic-layer BLE/USB connection colors onto arbitrary pixels on either
+      half, updating live while active. Reuses the &pixel split channel for the
+      peripheral half.
+
 endif # ZMK_RGB_UNDERGLOW
 
 menuconfig ZMK_BACKLIGHT

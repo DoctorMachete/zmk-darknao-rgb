@@ -1,0 +1,10 @@
+# Copyright (c) 2024, The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: |
+  Hide the relocatable BLE/USB indicator at a global pixel position.
+  param1 = global strip position, param2 = WHICH (must match the matching _on).
+
+compatible: "zmk,behavior-magic-indicator-off"
+
+include: two_param.yaml

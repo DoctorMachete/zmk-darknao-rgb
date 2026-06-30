@@ -1,0 +1,13 @@
+# Copyright (c) 2024, The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: |
+  Show a relocatable BLE/USB status indicator at a global pixel position.
+  param1 = global strip position (same address space as &pixel: 0..local-1 =
+  left/central, >= local = right/peripheral). param2 = WHICH (MAGIC_BLE0..4 or
+  MAGIC_USB). Color is derived from live connection state using the native
+  Magic-layer color ladder; it updates live while registered.
+
+compatible: "zmk,behavior-magic-indicator-on"
+
+include: two_param.yaml

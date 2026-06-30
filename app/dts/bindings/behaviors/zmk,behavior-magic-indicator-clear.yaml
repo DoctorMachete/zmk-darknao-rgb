@@ -1,0 +1,9 @@
+# Copyright (c) 2024, The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: |
+  Clear ALL active relocatable BLE/USB indicators (both halves). No parameters.
+
+compatible: "zmk,behavior-magic-indicator-clear"
+
+include: zero_param.yaml
