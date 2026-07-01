@@ -91,6 +91,7 @@ target_sources_ifdef(CONFIG_ZMK_MAGIC_INDICATOR app PRIVATE src/magic_indicator.
 target_sources_ifdef(CONFIG_ZMK_MAGIC_INDICATOR app PRIVATE src/behaviors/behavior_magic_indicator_on.c)
 target_sources_ifdef(CONFIG_ZMK_MAGIC_INDICATOR app PRIVATE src/behaviors/behavior_magic_indicator_off.c)
 target_sources_ifdef(CONFIG_ZMK_MAGIC_INDICATOR app PRIVATE src/behaviors/behavior_magic_indicator_clear.c)
+target_sources_ifdef(CONFIG_ZMK_MAGIC_INDICATOR app PRIVATE src/behaviors/behavior_magic_indicator_group.c)
 # Secondary indicators (battery/USB) — disabled for now; re-enable when wanted.
 # target_sources_ifdef(CONFIG_ZMK_RGB_UNDERGLOW app PRIVATE src/behaviors/behavior_battery_indicator.c)
 # target_sources_ifdef(CONFIG_ZMK_RGB_UNDERGLOW app PRIVATE src/behaviors/behavior_usb_indicator.c)
