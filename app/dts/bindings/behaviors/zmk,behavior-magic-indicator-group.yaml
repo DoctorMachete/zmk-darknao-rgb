@@ -1,0 +1,23 @@
+# Copyright (c) 2024, The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: |
+  Paint a fixed set of BLE/USB status indicators in a single behavior
+  invocation (one queue entry instead of N chained &magic_indicator_on).
+  `positions` = global pixel positions (same address space as &pixel).
+  `selection` = matching WHICH values (MAGIC_BLE0..4 / MAGIC_USB).
+  The two arrays must be the same length.
+
+compatible: "zmk,behavior-magic-indicator-group"
+
+include: zero_param.yaml
+
+properties:
+  positions:
+    type: array
+    required: true
+    description: Global pixel positions for each indicator.
+  selection:
+    type: array
+    required: true
+    description: WHICH value per position (MAGIC_BLE0..4 or MAGIC_USB).
