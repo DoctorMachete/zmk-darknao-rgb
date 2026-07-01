@@ -60,9 +60,19 @@
 #define PIXEL_LH_C3R4 15
 #define PIXEL_LH_C2R4 10
 #define PIXEL_LH_C1R4 6
-#define PIXEL_LH_T1   11
-#define PIXEL_LH_T2   16
-#define PIXEL_LH_T3   21
+/*
+ * LH bottom-region LED names CORRECTED against the go60_lh.dts pixel-lookup
+ * table (verified: the same decode reproduces the known-correct RH names).
+ * Previously LEDs 11/16/21 were mislabeled T1/T2/T3, and the real LH thumb
+ * LEDs (0/1/2) were unnamed. LED 11 physically lights key LH_C2R5 (Backspace),
+ * NOT the thumb. See go60_lh.dts LED map / pixel-lookup for the source of truth.
+ */
+#define PIXEL_LH_T1    0    /* real left thumb (was unnamed) */
+#define PIXEL_LH_T2    1    /* real left thumb (was unnamed) */
+#define PIXEL_LH_T3    2    /* real left thumb (was unnamed) */
+#define PIXEL_LH_C2R5  11   /* inner bottom row (was mislabeled PIXEL_LH_T1) */
+#define PIXEL_LH_C3R5  16   /* inner bottom row (was mislabeled PIXEL_LH_T2) */
+#define PIXEL_LH_C4R5  21   /* inner bottom row (was mislabeled PIXEL_LH_T3) */
 
 /* ===================== RIGHT half (global 30..59) ===================== */
 #define PIXEL_RH_C6R1 56
