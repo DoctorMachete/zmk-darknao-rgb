@@ -37,6 +37,17 @@
 
 LOG_MODULE_REGISTER(magic_indicator, CONFIG_ZMK_LOG_LEVEL);
 
+/*
+ * BLE/USB/endpoint state is central-only: this TU is built for the central (or
+ * a non-split board), and zmk_endpoints_selected() / zmk_ble_active_profile_index()
+ * / zmk_ble_profile_status() DO NOT EXIST on a split peripheral. Same guard the
+ * native rgb_underglow.c and behavior_pixel_color.c use. On a peripheral, color
+ * resolution is never actually reached (indicators are driven by the central's
+ * layer listener and pushed as resolved colors), so the peripheral build just
+ * needs a stub that satisfies the linker.
+ */
+#define MI_HAS_STATE ((!IS_ENABLED(CONFIG_ZMK_SPLIT)) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL))
+
 /* ---- native color ladder (packed 0xRRGGBB) ---- */
 #define MI_WHITE      0xffffff
 #define MI_DULL_GREEN 0x00ff68
@@ -57,6 +68,7 @@ static struct mi_entry mi_entries[MI_MAX];
  * Returns packed 0xRRGGBB. Only meaningful on the central (state lives here).
  */
 static uint32_t mi_resolve_color(uint8_t which) {
+#if MI_HAS_STATE
     struct zmk_endpoint_instance active_endpoint = zmk_endpoints_selected();
 
     if (which == ZMK_MAGIC_INDICATOR_USB) {
@@ -87,6 +99,11 @@ static uint32_t mi_resolve_color(uint8_t which) {
     }
     return MI_LILAC;           /* unused */
 #else
+    return MI_LILAC;
+#endif
+
+#else  /* !MI_HAS_STATE : split peripheral has no endpoint/BLE state APIs */
+    ARG_UNUSED(which);
     return MI_LILAC;
 #endif
 }
@@ -121,7 +138,10 @@ static void mi_paint_entry(const struct mi_entry *e) {
     mi_apply(e->position, (int32_t)color);
 }
 
-/* Repaint every active indicator (called on any relevant state change). */
+/* Repaint every active indicator (called on any relevant state change).
+ * Only used by the state-change listener, which exists on central/non-split
+ * only; guard to avoid an unused-function warning on a split peripheral. */
+#if MI_HAS_STATE
 static void mi_repaint_all(void) {
     for (int i = 0; i < MI_MAX; i++) {
         if (mi_entries[i].active) {
@@ -129,6 +149,7 @@ static void mi_repaint_all(void) {
         }
     }
 }
+#endif
 
 int zmk_magic_indicator_on(uint32_t position, uint8_t which) {
     /* update existing, else take a free slot */
@@ -178,7 +199,13 @@ int zmk_magic_indicator_clear_all(void) {
     return 0;
 }
 
-/* ---- live update: recompute colors on state changes ---- */
+/* ---- live update: recompute colors on state changes ----
+ * Only meaningful where the state APIs exist (central / non-split). On a split
+ * peripheral there is nothing to subscribe to and the event symbols may not be
+ * built, so compile the listener out entirely there.
+ */
+#if MI_HAS_STATE
+
 static int mi_event_listener(const zmk_event_t *eh) {
     /* Any of these may change an indicator's color. Cheapest correct response
      * is to repaint all active indicators. */
@@ -190,5 +217,10 @@ ZMK_LISTENER(magic_indicator, mi_event_listener);
 #if IS_ENABLED(CONFIG_ZMK_BLE)
 ZMK_SUBSCRIPTION(magic_indicator, zmk_ble_active_profile_changed);
 #endif
+/* endpoint_changed.c is always built; usb_conn_state_changed.c needs USB stack. */
 ZMK_SUBSCRIPTION(magic_indicator, zmk_endpoint_changed);
+#if IS_ENABLED(CONFIG_USB_DEVICE_STACK)
 ZMK_SUBSCRIPTION(magic_indicator, zmk_usb_conn_state_changed);
+#endif
+
+#endif /* MI_HAS_STATE */
