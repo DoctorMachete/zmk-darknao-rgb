@@ -110,6 +110,16 @@ static struct led_rgb pixel_overrides[STRIP_NUM_PIXELS];
 static bool pixel_override_active[STRIP_NUM_PIXELS];
 static bool any_pixel_override;
 
+// Relocatable MAGIC (BLE/USB) indicator layer, written by magic_indicator.c via
+// zmk_rgb_underglow_set_magic_pixel(). Kept SEPARATE from pixel_overrides[] so a
+// &pixel at the same position does not clobber an indicator (and vice-versa).
+// Composited ABOVE the &pixel override layer: while an indicator is active at a
+// position it wins; when it is cleared, any &pixel override at that position is
+// revealed again.
+static struct led_rgb magic_pixels[STRIP_NUM_PIXELS];
+static bool magic_pixel_active[STRIP_NUM_PIXELS];
+static bool any_magic_pixel;
+
 // Persistent, relocatable status indicators (battery block + USB output).
 // Unlike the fixed-color overrides above, these recompute their colors live on
 // every status refresh, so they track the current battery level / USB state.
@@ -277,9 +287,11 @@ static void zmk_led_write_pixels(void) {
     bat0 = 100;
 #endif
 
-    bool persist_overlay = (!state.status_active) && (any_pixel_override || any_persist_indicator());
+    bool persist_overlay = (!state.status_active) &&
+                           (any_pixel_override || any_magic_pixel || any_persist_indicator());
 
-    if (state.status_active || any_pixel_override || any_persist_indicator()) {
+    if (state.status_active || any_pixel_override || any_magic_pixel ||
+        any_persist_indicator()) {
         blend = zmk_led_generate_status();
     }
 
@@ -602,11 +614,25 @@ static int zmk_led_generate_status(void) {
         persist_paint_usb();
     }
 
-    // Fixed-color overrides win over everything (highest priority).
+    // Fixed-color &pixel overrides: above battery/USB indicators, BELOW magic
+    // indicators (which paint last, just after this block).
     if (any_pixel_override) {
         for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
             if (pixel_override_active[i]) {
                 status_pixels[i] = pixel_overrides[i];
+                status_overlay_active[i] = true;
+            }
+        }
+    }
+
+    // Magic (BLE/USB) indicators win over &pixel overrides: painted last =
+    // highest priority. A cleared indicator (magic_pixel_active[i] == false)
+    // leaves the &pixel override from the block above intact, so the underlying
+    // pixel is revealed rather than lost.
+    if (any_magic_pixel) {
+        for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
+            if (magic_pixel_active[i]) {
+                status_pixels[i] = magic_pixels[i];
                 status_overlay_active[i] = true;
             }
         }
@@ -1124,6 +1150,55 @@ int zmk_rgb_underglow_set_pixel(uint32_t position, int32_t color) {
     return 0;
 }
 
+// Magic-indicator layer setter. Same semantics and brightness scaling as
+// zmk_rgb_underglow_set_pixel(), but writes the separate magic layer so it does
+// not collide with &pixel overrides. color < 0 clears the indicator at that
+// position, revealing any &pixel override there.
+int zmk_rgb_underglow_set_magic_pixel(uint32_t position, int32_t color) {
+    if (!led_strip)
+        return -ENODEV;
+
+    if (position >= STRIP_NUM_PIXELS) {
+        LOG_WRN("magic pixel position %u out of range (strip is %d pixels, local half only)",
+                position, STRIP_NUM_PIXELS);
+        return -EINVAL;
+    }
+
+    if (color < 0) {
+        // Clear this indicator (reveals any &pixel override at this position).
+        if (magic_pixel_active[position]) {
+            magic_pixel_active[position] = false;
+            magic_pixels[position] = (struct led_rgb){r : 0, g : 0, b : 0};
+        }
+    } else {
+        uint8_t r = (color & 0xFF0000) >> 16;
+        uint8_t g = (color & 0x00FF00) >> 8;
+        uint8_t b = (color & 0x0000FF);
+        magic_pixels[position] = (struct led_rgb){
+            r : (CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX * r) / 0xff,
+            g : (CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX * g) / 0xff,
+            b : (CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX * b) / 0xff
+        };
+        magic_pixel_active[position] = true;
+    }
+
+    // Recompute the "any magic pixel" flag.
+    any_magic_pixel = false;
+    for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
+        if (magic_pixel_active[i]) {
+            any_magic_pixel = true;
+            break;
+        }
+    }
+
+    // Make sure power is available and push the new buffer to the strip now,
+    // even if underglow is currently off.
+    zmk_rgb_set_ext_power();
+    zmk_led_write_pixels();
+
+    return 0;
+}
+
 int zmk_rgb_underglow_clear_pixels(void) {
     if (!led_strip)
         return -ENODEV;
@@ -1131,6 +1206,12 @@ int zmk_rgb_underglow_clear_pixels(void) {
     memset(pixel_overrides, 0, sizeof(pixel_overrides));
     memset(pixel_override_active, 0, sizeof(pixel_override_active));
     any_pixel_override = false;
+
+    // A blunt &pixel CLEAR_ALL also wipes magic indicators (policy: CLEAR_ALL is
+    // a full-strip reset). Remove these three lines if indicators should survive.
+    memset(magic_pixels, 0, sizeof(magic_pixels));
+    memset(magic_pixel_active, 0, sizeof(magic_pixel_active));
+    any_magic_pixel = false;
 
     zmk_led_write_pixels();
     zmk_rgb_set_ext_power();

@@ -42,6 +42,9 @@ int zmk_rgb_underglow_status(void);
  */
 int zmk_rgb_underglow_set_pixel(uint32_t position, int32_t color);
 int zmk_rgb_underglow_clear_pixels(void);
+// Magic-indicator layer setter (separate layer, composited above &pixel
+// overrides). Written by magic_indicator.c. color < 0 clears at that position.
+int zmk_rgb_underglow_set_magic_pixel(uint32_t position, int32_t color);
 
 /*
  * Sentinel "positions" for the &pixel behavior to clear groups of overrides in

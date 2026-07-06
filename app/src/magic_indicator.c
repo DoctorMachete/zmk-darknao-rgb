@@ -117,7 +117,7 @@ static void mi_apply(uint32_t position, int32_t color) {
     uint8_t local_count = zmk_rgb_underglow_pixel_count();
 
     if (position < local_count) {
-        zmk_rgb_underglow_set_pixel(position, color);
+        zmk_rgb_underglow_set_magic_pixel(position, color);
     } else {
 #if IS_ENABLED(CONFIG_ZMK_SPLIT) && IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
         uint8_t remote_pos = (uint8_t)(position - local_count);
