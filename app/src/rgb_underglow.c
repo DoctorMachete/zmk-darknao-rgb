@@ -802,7 +802,8 @@ void zmk_rgb_set_ext_power(void) {
         c_power = 0;
     }
     int desired_state = state.on || state.status_active || any_pixel_override ||
-                        any_persist_indicator();
+                    any_magic_pixel || any_persist_indicator();
+  
 
 #if IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING)
     // force power off, when battery low (<10%)
