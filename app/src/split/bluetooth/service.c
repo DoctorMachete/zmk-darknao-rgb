@@ -213,6 +213,12 @@ static void split_svc_update_rgb_pixel_callback(struct k_work *work) {
         case ZMK_SPLIT_RGB_PIXEL_OP_USB_CLEAR:
             zmk_rgb_underglow_clear_usb_indicator();
             break;
+        case ZMK_SPLIT_RGB_PIXEL_OP_PIXLBLINK:
+            zmk_rgb_underglow_set_pixlblink(msg.position, (int32_t)msg.color);
+            break;
+        case ZMK_SPLIT_RGB_PIXEL_OP_PIXLBLINK_CLEAR:
+            zmk_rgb_underglow_set_pixlblink(msg.position, -1);
+            break;
         default:
             LOG_WRN("Unknown RGB pixel op %d", msg.op);
             break;

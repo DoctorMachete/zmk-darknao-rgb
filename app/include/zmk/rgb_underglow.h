@@ -47,6 +47,23 @@ int zmk_rgb_underglow_clear_pixels(void);
 int zmk_rgb_underglow_set_magic_pixel(uint32_t position, int32_t color);
 
 /*
+ * PIXLBLINK layer (&pixlblink behavior). Sharp square-wave blink of a single
+ * pixel between `color` and BLACK (off). Separate parallel layer, composited
+ * ABOVE &pixel overrides but BELOW magic indicators. color < 0 stops/clears the
+ * blink at that position (revealing whatever is beneath). The strip / ext-power
+ * are driven on demand and the refresh timer is kept alive while any blink is
+ * active, so a blink runs even when underglow is off.
+ *
+ * Frequency is fixed in firmware for now (not a binding parameter). Encoding:
+ *   freq_hz = PIXLBLINK_FREQ_CODE / 10   ->  code 5 = 0.5 Hz, code 10 = 1 Hz.
+ * v001 default is 0.5 Hz. (Future: move PIXLBLINK_FREQ_CODE to Kconfig / go60.conf.)
+ */
+#ifndef PIXLBLINK_FREQ_CODE
+#define PIXLBLINK_FREQ_CODE 5 /* 0.5 Hz */
+#endif
+int zmk_rgb_underglow_set_pixlblink(uint32_t position, int32_t color);
+
+/*
  * Sentinel "positions" for the &pixel behavior to clear groups of overrides in
  * one binding (the param2 color is ignored for these):
  *   &pixel ZMK_PIXEL_CLEAR_LEFT  0   -> clear all overrides on the local/left half

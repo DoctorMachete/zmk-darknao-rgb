@@ -1,0 +1,15 @@
+/*
+ * Copyright (c) 2024 The ZMK Contributors
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
+/ {
+    behaviors {
+        pixlblink: pixlblink {
+            compatible = "zmk,behavior-pixlblink";
+            #binding-cells = <2>;
+            display-name = "Pixel Blink";
+        };
+    };
+};

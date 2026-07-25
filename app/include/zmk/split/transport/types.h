@@ -79,6 +79,8 @@ enum zmk_split_rgb_pixel_op {
     ZMK_SPLIT_RGB_PIXEL_OP_BATTERY_CLEAR = 4, // disable battery block
     ZMK_SPLIT_RGB_PIXEL_OP_USB = 5,           // usb indicator at position
     ZMK_SPLIT_RGB_PIXEL_OP_USB_CLEAR = 6,     // disable usb indicator
+    ZMK_SPLIT_RGB_PIXEL_OP_PIXLBLINK = 7,       // start sharp blink (position, color)
+    ZMK_SPLIT_RGB_PIXEL_OP_PIXLBLINK_CLEAR = 8, // stop blink at position
 } __packed;
 
 #define ZMK_SPLIT_RGB_PIXEL_MAX_POSITIONS 8

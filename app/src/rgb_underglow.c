@@ -120,6 +120,26 @@ static struct led_rgb magic_pixels[STRIP_NUM_PIXELS];
 static bool magic_pixel_active[STRIP_NUM_PIXELS];
 static bool any_magic_pixel;
 
+// Sharp single-color blink layer, written by the &pixlblink behavior via
+// zmk_rgb_underglow_set_pixlblink(). Each active position alternates between its
+// stored color (ON phase) and black (OFF phase) as a hard square wave. Kept in
+// its own layer, composited ABOVE &pixel overrides and BELOW magic indicators.
+// The ON/OFF phase is derived per-frame from the free-running kernel uptime, so
+// no per-position counter state is needed. Frequency is fixed (PIXLBLINK_FREQ_CODE).
+static struct led_rgb pixlblink_color[STRIP_NUM_PIXELS]; // the "on" color
+static bool pixlblink_active[STRIP_NUM_PIXELS];          // is this position blinking?
+static bool any_pixlblink;
+
+// Current square-wave phase: true == ON (show color), false == OFF (show black).
+// half_ms = 500 / freq_hz = 5000 / PIXLBLINK_FREQ_CODE  (code 5 -> 1000 ms).
+static inline bool pixlblink_on_phase(void) {
+    uint32_t half_ms = 5000U / PIXLBLINK_FREQ_CODE;
+    if (half_ms == 0) {
+        half_ms = 1; // guard against a mis-set code; avoids div-by-zero below
+    }
+    return ((k_uptime_get() / half_ms) & 1) == 0;
+}
+
 // Persistent, relocatable status indicators (battery block + USB output).
 // Unlike the fixed-color overrides above, these recompute their colors live on
 // every status refresh, so they track the current battery level / USB state.
@@ -287,10 +307,11 @@ static void zmk_led_write_pixels(void) {
     bat0 = 100;
 #endif
 
-    bool persist_overlay = (!state.status_active) &&
-                           (any_pixel_override || any_magic_pixel || any_persist_indicator());
+    bool persist_overlay =
+        (!state.status_active) && (any_pixel_override || any_magic_pixel || any_pixlblink ||
+                                   any_persist_indicator());
 
-    if (state.status_active || any_pixel_override || any_magic_pixel ||
+    if (state.status_active || any_pixel_override || any_magic_pixel || any_pixlblink ||
         any_persist_indicator()) {
         blend = zmk_led_generate_status();
     }
@@ -625,6 +646,22 @@ static int zmk_led_generate_status(void) {
         }
     }
 
+    // PIXLBLINK sharp blink layer: above &pixel overrides, below magic
+    // indicators. On the ON phase the stored color is stamped; on the OFF phase
+    // black is stamped (and the overlay mask is set) so the pixel is driven dark
+    // over the underglow, producing a hard on/off blink. Phase is evaluated once
+    // per frame from the free-running clock.
+    if (any_pixlblink) {
+        bool on = pixlblink_on_phase();
+        for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
+            if (pixlblink_active[i]) {
+                status_pixels[i] =
+                    on ? pixlblink_color[i] : (struct led_rgb){r : 0, g : 0, b : 0};
+                status_overlay_active[i] = true;
+            }
+        }
+    }
+
     // Magic (BLE/USB) indicators win over &pixel overrides: painted last =
     // highest priority. A cleared indicator (magic_pixel_active[i] == false)
     // leaves the &pixel override from the block above intact, so the underlying
@@ -802,7 +839,7 @@ void zmk_rgb_set_ext_power(void) {
         c_power = 0;
     }
     int desired_state = state.on || state.status_active || any_pixel_override ||
-                    any_magic_pixel || any_persist_indicator();
+                    any_magic_pixel || any_pixlblink || any_persist_indicator();
   
 
 #if IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING)
@@ -1062,7 +1099,9 @@ K_WORK_DEFINE(underglow_write_work, zmk_led_write_pixels_work);
 K_TIMER_DEFINE(underglow_status_update_timer, zmk_rgb_underglow_status_update, NULL);
 
 static void zmk_rgb_underglow_status_update(struct k_timer *timer) {
-    bool persist = any_persist_indicator();
+    // A running PIXLBLINK needs this 25 ms timer alive to animate its square
+    // wave, exactly like a persistent indicator needs it to refresh.
+    bool persist = any_persist_indicator() || any_pixlblink;
 
     if (!state.status_active && !persist) {
         k_timer_stop(&underglow_status_update_timer);
@@ -1073,7 +1112,7 @@ static void zmk_rgb_underglow_status_update(struct k_timer *timer) {
         state.status_animation_step++;
         if (state.status_animation_step > (10000 / 25)) {
             state.status_active = false;
-            // Don't stop the timer if persistent indicators still need refreshing.
+            // Don't stop the timer if persistent indicators / a blink still need it.
             if (!persist)
                 k_timer_stop(&underglow_status_update_timer);
         }
@@ -1196,6 +1235,59 @@ int zmk_rgb_underglow_set_magic_pixel(uint32_t position, int32_t color) {
     // even if underglow is currently off.
     zmk_rgb_set_ext_power();
     zmk_led_write_pixels();
+
+    return 0;
+}
+
+// PIXLBLINK setter. Records (or clears) the ON color for a blinking position in
+// the separate blink layer. Unlike the static &pixel/magic setters, it also
+// starts the 25 ms refresh timer so the square wave actually animates (the timer
+// keeps itself alive while any_pixlblink is true; see status_update). color < 0
+// stops the blink at that position, revealing whatever is beneath.
+int zmk_rgb_underglow_set_pixlblink(uint32_t position, int32_t color) {
+    if (!led_strip)
+        return -ENODEV;
+
+    if (position >= STRIP_NUM_PIXELS) {
+        LOG_WRN("pixlblink position %u out of range (strip is %d pixels, local half only)",
+                position, STRIP_NUM_PIXELS);
+        return -EINVAL;
+    }
+
+    if (color < 0) {
+        // Stop blinking at this position.
+        if (pixlblink_active[position]) {
+            pixlblink_active[position] = false;
+            pixlblink_color[position] = (struct led_rgb){r : 0, g : 0, b : 0};
+        }
+    } else {
+        uint8_t r = (color & 0xFF0000) >> 16;
+        uint8_t g = (color & 0x00FF00) >> 8;
+        uint8_t b = (color & 0x0000FF);
+        pixlblink_color[position] = (struct led_rgb){
+            r : (CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX * r) / 0xff,
+            g : (CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX * g) / 0xff,
+            b : (CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX * b) / 0xff
+        };
+        pixlblink_active[position] = true;
+    }
+
+    // Recompute the "any blink" flag.
+    any_pixlblink = false;
+    for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
+        if (pixlblink_active[i]) {
+            any_pixlblink = true;
+            break;
+        }
+    }
+
+    // Make sure power is available, paint the current phase now, and keep the
+    // 25 ms refresh timer running so the blink animates even if underglow is off.
+    zmk_rgb_set_ext_power();
+    zmk_led_write_pixels();
+    if (any_pixlblink) {
+        k_timer_start(&underglow_status_update_timer, K_NO_WAIT, K_MSEC(25));
+    }
 
     return 0;
 }

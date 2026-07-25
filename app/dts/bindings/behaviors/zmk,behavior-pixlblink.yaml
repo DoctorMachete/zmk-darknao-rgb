@@ -1,0 +1,13 @@
+# Copyright (c) 2024, The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: |
+  Sharp single-color blink of one LED (by strip position), alternating between
+  the given color and black (off) as a hard square wave, on either half. The
+  blink frequency is fixed in firmware (not a binding parameter) in this version.
+  param1 is the global strip position, param2 is the "on" color (negative stops
+  the blink). The static &pixel behavior is separate and unaffected.
+
+compatible: "zmk,behavior-pixlblink"
+
+include: two_param.yaml

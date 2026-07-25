@@ -273,6 +273,25 @@ int zmk_split_central_clear_usb_indicator(void) {
     return zmk_split_central_send_rgb_pixel(command);
 }
 
+int zmk_split_central_set_pixlblink(uint8_t position, uint32_t color) {
+    struct zmk_split_transport_central_command command = {
+        .type = ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_RGB_PIXEL,
+        .data = {.set_rgb_pixel = {.op = ZMK_SPLIT_RGB_PIXEL_OP_PIXLBLINK,
+                                   .position = position,
+                                   .color = color}},
+    };
+    return zmk_split_central_send_rgb_pixel(command);
+}
+
+int zmk_split_central_clear_pixlblink(uint8_t position) {
+    struct zmk_split_transport_central_command command = {
+        .type = ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_RGB_PIXEL,
+        .data = {.set_rgb_pixel = {.op = ZMK_SPLIT_RGB_PIXEL_OP_PIXLBLINK_CLEAR,
+                                   .position = position}},
+    };
+    return zmk_split_central_send_rgb_pixel(command);
+}
+
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING)
 
 int zmk_split_central_get_peripheral_battery_level(uint8_t source, uint8_t *level) {

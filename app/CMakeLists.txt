@@ -86,6 +86,8 @@ endif()
 target_sources_ifdef(CONFIG_ZMK_RGB_UNDERGLOW app PRIVATE src/behaviors/behavior_rgb_underglow.c)
 target_sources_ifdef(CONFIG_ZMK_RGB_UNDERGLOW app PRIVATE src/behaviors/behavior_underglow_color.c)
 target_sources_ifdef(CONFIG_ZMK_RGB_UNDERGLOW app PRIVATE src/behaviors/behavior_pixel_color.c)
+# Sharp single-color blink behavior (&pixlblink), both halves.
+target_sources_ifdef(CONFIG_ZMK_RGB_UNDERGLOW app PRIVATE src/behaviors/behavior_pixlblink.c)
 # Relocatable BLE/USB Magic-layer indicators (live-updating, both halves).
 target_sources_ifdef(CONFIG_ZMK_MAGIC_INDICATOR app PRIVATE src/magic_indicator.c)
 target_sources_ifdef(CONFIG_ZMK_MAGIC_INDICATOR app PRIVATE src/behaviors/behavior_magic_indicator_on.c)
