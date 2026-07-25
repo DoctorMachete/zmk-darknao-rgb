@@ -6,10 +6,31 @@
 
 / {
     behaviors {
-        pixlblink: pixlblink {
-            compatible = "zmk,behavior-pixlblink";
-            #binding-cells = <2>;
-            display-name = "Pixel Blink";
+        /*
+         * &pixlblink_off — fixed, non-configurable. Stops the blink at a position.
+         * One parameter: the global strip position. Shipped as a single instance.
+         */
+        pixlblink_off: pixlblink_off {
+            compatible = "zmk,behavior-pixlblink-off";
+            #binding-cells = <1>;
+            display-name = "Pixel Blink Off";
         };
+
+        /*
+         * &pixlblink presets are defined in the keymap, one named node per
+         * color/frequency combination, e.g.:
+         *
+         *     blink_recording_macro: blink_recording_macro {
+         *         compatible = "zmk,behavior-pixlblink";
+         *         #binding-cells = <1>;
+         *         frequency = <5>;            // freq_hz = code / 10 -> 0.5 Hz
+         *         color1 = <PX_ORANGE>;
+         *         color2 = <PX_RED>;          // optional; defaults to black
+         *     };
+         *
+         * then used as:  &blink_recording_macro PIXEL_LH_C3R2
+         * The behavior driver compiles in as soon as at least one such instance
+         * exists in the devicetree (keymap included).
+         */
     };
 };

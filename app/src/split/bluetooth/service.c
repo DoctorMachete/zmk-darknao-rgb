@@ -177,12 +177,14 @@ static ssize_t split_svc_update_layers(struct bt_conn *conn, const struct bt_gat
 // would drop commands (last-write-wins / coalesced submits), causing clears to
 // be lost and overrides to go stale. Use a message queue so EVERY command is
 // processed in order, none dropped.
-struct rgb_pixel_msg {
+struct __packed rgb_pixel_msg {
     uint8_t op;
     uint8_t position;
     uint8_t count;
     uint32_t color;
     uint8_t positions[ZMK_SPLIT_RGB_PIXEL_MAX_POSITIONS];
+    uint32_t color2;   // pixlblink second color
+    uint8_t freq_code; // pixlblink frequency code
 };
 
 K_MSGQ_DEFINE(rgb_pixel_msgq, sizeof(struct rgb_pixel_msg), 16, 4);
@@ -214,10 +216,10 @@ static void split_svc_update_rgb_pixel_callback(struct k_work *work) {
             zmk_rgb_underglow_clear_usb_indicator();
             break;
         case ZMK_SPLIT_RGB_PIXEL_OP_PIXLBLINK:
-            zmk_rgb_underglow_set_pixlblink(msg.position, (int32_t)msg.color);
+            zmk_rgb_underglow_set_pixlblink(msg.position, msg.color, msg.color2, msg.freq_code);
             break;
         case ZMK_SPLIT_RGB_PIXEL_OP_PIXLBLINK_CLEAR:
-            zmk_rgb_underglow_set_pixlblink(msg.position, -1);
+            zmk_rgb_underglow_clear_pixlblink(msg.position);
             break;
         default:
             LOG_WRN("Unknown RGB pixel op %d", msg.op);

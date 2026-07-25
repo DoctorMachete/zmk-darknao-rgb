@@ -88,6 +88,8 @@ target_sources_ifdef(CONFIG_ZMK_RGB_UNDERGLOW app PRIVATE src/behaviors/behavior
 target_sources_ifdef(CONFIG_ZMK_RGB_UNDERGLOW app PRIVATE src/behaviors/behavior_pixel_color.c)
 # Sharp single-color blink behavior (&pixlblink), both halves.
 target_sources_ifdef(CONFIG_ZMK_RGB_UNDERGLOW app PRIVATE src/behaviors/behavior_pixlblink.c)
+# Fixed off companion (&pixlblink_off), both halves.
+target_sources_ifdef(CONFIG_ZMK_RGB_UNDERGLOW app PRIVATE src/behaviors/behavior_pixlblink_off.c)
 # Relocatable BLE/USB Magic-layer indicators (live-updating, both halves).
 target_sources_ifdef(CONFIG_ZMK_MAGIC_INDICATOR app PRIVATE src/magic_indicator.c)
 target_sources_ifdef(CONFIG_ZMK_MAGIC_INDICATOR app PRIVATE src/behaviors/behavior_magic_indicator_on.c)

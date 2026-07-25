@@ -1,0 +1,11 @@
+# Copyright (c) 2024, The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: |
+  Fixed companion to &pixlblink. Stops the blink at a single position (revealing
+  whatever is beneath). Invoked with one parameter, the global strip position.
+  Not user-configurable; the fork ships a single &pixlblink_off instance.
+
+compatible: "zmk,behavior-pixlblink-off"
+
+include: one_param.yaml

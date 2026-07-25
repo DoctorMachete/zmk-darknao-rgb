@@ -2,12 +2,30 @@
 # SPDX-License-Identifier: MIT
 
 description: |
-  Sharp single-color blink of one LED (by strip position), alternating between
-  the given color and black (off) as a hard square wave, on either half. The
-  blink frequency is fixed in firmware (not a binding parameter) in this version.
-  param1 is the global strip position, param2 is the "on" color (negative stops
-  the blink). The static &pixel behavior is separate and unaffected.
+  Sharp two-color blink of one LED (by strip position), on either half. This is a
+  preset behavior: each named instance carries its own two colors and blink
+  frequency, and is invoked with a single parameter (the global strip position).
+  The LED hard-alternates color1 and color2 (color2 may be black for an off
+  half-cycle) as a square wave. Stop a blink with the fixed &pixlblink_off
+  behavior. Frequency encoding: freq_hz = frequency / 10 (so 5 = 0.5 Hz, 10 = 1 Hz).
 
 compatible: "zmk,behavior-pixlblink"
 
-include: two_param.yaml
+include: one_param.yaml
+
+properties:
+  color1:
+    type: int
+    required: false
+    default: 0xFFFFFF
+    description: First (ON half-cycle) color, packed 0xRRGGBB.
+  color2:
+    type: int
+    required: false
+    default: 0x000000
+    description: Second (OFF half-cycle) color, packed 0xRRGGBB. Black by default.
+  frequency:
+    type: int
+    required: false
+    default: 5
+    description: Blink frequency code; freq_hz = frequency / 10 (5 = 0.5 Hz).

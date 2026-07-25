@@ -113,8 +113,10 @@ struct zmk_split_transport_central_command {
             uint8_t op;       // enum zmk_split_rgb_pixel_op
             uint8_t position; // local strip index on the peripheral
             uint8_t count;    // number of valid entries in positions (battery op)
-            uint32_t color;   // 0xRRGGBB (set op)
+            uint32_t color;   // 0xRRGGBB (set op; also color1 for pixlblink)
             uint8_t positions[ZMK_SPLIT_RGB_PIXEL_MAX_POSITIONS];
+            uint32_t color2;   // 0xRRGGBB second blink color (pixlblink op)
+            uint8_t freq_code; // pixlblink frequency code (freq_hz = code / 10)
         } set_rgb_pixel;
     } data;
 } __packed;

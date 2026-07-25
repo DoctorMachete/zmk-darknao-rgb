@@ -120,24 +120,30 @@ static struct led_rgb magic_pixels[STRIP_NUM_PIXELS];
 static bool magic_pixel_active[STRIP_NUM_PIXELS];
 static bool any_magic_pixel;
 
-// Sharp single-color blink layer, written by the &pixlblink behavior via
-// zmk_rgb_underglow_set_pixlblink(). Each active position alternates between its
-// stored color (ON phase) and black (OFF phase) as a hard square wave. Kept in
-// its own layer, composited ABOVE &pixel overrides and BELOW magic indicators.
-// The ON/OFF phase is derived per-frame from the free-running kernel uptime, so
-// no per-position counter state is needed. Frequency is fixed (PIXLBLINK_FREQ_CODE).
-static struct led_rgb pixlblink_color[STRIP_NUM_PIXELS]; // the "on" color
-static bool pixlblink_active[STRIP_NUM_PIXELS];          // is this position blinking?
+// Sharp two-color blink layer, written by the &pixlblink preset behavior via
+// zmk_rgb_underglow_set_pixlblink(). Each active position hard-alternates between
+// its own color1 and color2 as a square wave, at its own frequency (so different
+// presets on different pixels can blink at different rates). Kept in its own
+// layer, composited ABOVE &pixel overrides and BELOW magic indicators. The
+// ON/OFF phase is derived per-frame from the free-running kernel uptime, so no
+// per-position counter state is needed. Cleared via zmk_rgb_underglow_clear_pixlblink().
+struct pixlblink_slot {
+    struct led_rgb color1;  // shown on the ON half-cycle
+    struct led_rgb color2;  // shown on the OFF half-cycle (may be black)
+    uint32_t half_ms;       // half-period in ms = 5000 / freq_code (code 5 -> 1000 ms)
+    bool active;
+};
+static struct pixlblink_slot pixlblink_slots[STRIP_NUM_PIXELS];
 static bool any_pixlblink;
 
-// Current square-wave phase: true == ON (show color), false == OFF (show black).
-// half_ms = 500 / freq_hz = 5000 / PIXLBLINK_FREQ_CODE  (code 5 -> 1000 ms).
-static inline bool pixlblink_on_phase(void) {
-    uint32_t half_ms = 5000U / PIXLBLINK_FREQ_CODE;
-    if (half_ms == 0) {
-        half_ms = 1; // guard against a mis-set code; avoids div-by-zero below
+// Half-period in ms for a frequency code, where freq_hz = code / 10.
+// half_ms = 500 / freq_hz = 5000 / code. Guards a zero/missing code.
+static inline uint32_t pixlblink_half_ms(uint8_t freq_code) {
+    if (freq_code == 0) {
+        freq_code = PIXLBLINK_DEFAULT_FREQ_CODE;
     }
-    return ((k_uptime_get() / half_ms) & 1) == 0;
+    uint32_t hm = 5000U / freq_code;
+    return hm == 0 ? 1U : hm;
 }
 
 // Persistent, relocatable status indicators (battery block + USB output).
@@ -647,16 +653,16 @@ static int zmk_led_generate_status(void) {
     }
 
     // PIXLBLINK sharp blink layer: above &pixel overrides, below magic
-    // indicators. On the ON phase the stored color is stamped; on the OFF phase
-    // black is stamped (and the overlay mask is set) so the pixel is driven dark
-    // over the underglow, producing a hard on/off blink. Phase is evaluated once
-    // per frame from the free-running clock.
+    // indicators. Each active slot hard-alternates color1 (ON half) and color2
+    // (OFF half) using its own half-period, so different pixels can blink at
+    // different rates. Both phases set the overlay mask (color2 may be a real
+    // color, not just black). Phase is evaluated from the free-running clock.
     if (any_pixlblink) {
-        bool on = pixlblink_on_phase();
+        int64_t now = k_uptime_get();
         for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
-            if (pixlblink_active[i]) {
-                status_pixels[i] =
-                    on ? pixlblink_color[i] : (struct led_rgb){r : 0, g : 0, b : 0};
+            if (pixlblink_slots[i].active) {
+                bool on = ((now / (int64_t)pixlblink_slots[i].half_ms) & 1) == 0;
+                status_pixels[i] = on ? pixlblink_slots[i].color1 : pixlblink_slots[i].color2;
                 status_overlay_active[i] = true;
             }
         }
@@ -1239,12 +1245,35 @@ int zmk_rgb_underglow_set_magic_pixel(uint32_t position, int32_t color) {
     return 0;
 }
 
-// PIXLBLINK setter. Records (or clears) the ON color for a blinking position in
-// the separate blink layer. Unlike the static &pixel/magic setters, it also
-// starts the 25 ms refresh timer so the square wave actually animates (the timer
-// keeps itself alive while any_pixlblink is true; see status_update). color < 0
-// stops the blink at that position, revealing whatever is beneath.
-int zmk_rgb_underglow_set_pixlblink(uint32_t position, int32_t color) {
+// PIXLBLINK setter. Records a two-color blink (color1 <-> color2) at the given
+// frequency for a position in the separate blink layer. Unlike the static
+// &pixel/magic setters, it also starts the 25 ms refresh timer so the square wave
+// actually animates (the timer keeps itself alive while any_pixlblink is true;
+// see status_update). Colors are packed 0xRRGGBB and are brightness-scaled like
+// &pixel. Use zmk_rgb_underglow_clear_pixlblink() to stop a blink.
+static void pixlblink_recompute_any(void) {
+    any_pixlblink = false;
+    for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
+        if (pixlblink_slots[i].active) {
+            any_pixlblink = true;
+            break;
+        }
+    }
+}
+
+static struct led_rgb pixlblink_scale(uint32_t color) {
+    uint8_t r = (color & 0xFF0000) >> 16;
+    uint8_t g = (color & 0x00FF00) >> 8;
+    uint8_t b = (color & 0x0000FF);
+    return (struct led_rgb){
+        r : (CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX * r) / 0xff,
+        g : (CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX * g) / 0xff,
+        b : (CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX * b) / 0xff
+    };
+}
+
+int zmk_rgb_underglow_set_pixlblink(uint32_t position, uint32_t color1, uint32_t color2,
+                                    uint8_t freq_code) {
     if (!led_strip)
         return -ENODEV;
 
@@ -1254,32 +1283,12 @@ int zmk_rgb_underglow_set_pixlblink(uint32_t position, int32_t color) {
         return -EINVAL;
     }
 
-    if (color < 0) {
-        // Stop blinking at this position.
-        if (pixlblink_active[position]) {
-            pixlblink_active[position] = false;
-            pixlblink_color[position] = (struct led_rgb){r : 0, g : 0, b : 0};
-        }
-    } else {
-        uint8_t r = (color & 0xFF0000) >> 16;
-        uint8_t g = (color & 0x00FF00) >> 8;
-        uint8_t b = (color & 0x0000FF);
-        pixlblink_color[position] = (struct led_rgb){
-            r : (CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX * r) / 0xff,
-            g : (CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX * g) / 0xff,
-            b : (CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX * b) / 0xff
-        };
-        pixlblink_active[position] = true;
-    }
+    pixlblink_slots[position].color1 = pixlblink_scale(color1);
+    pixlblink_slots[position].color2 = pixlblink_scale(color2);
+    pixlblink_slots[position].half_ms = pixlblink_half_ms(freq_code);
+    pixlblink_slots[position].active = true;
 
-    // Recompute the "any blink" flag.
-    any_pixlblink = false;
-    for (int i = 0; i < STRIP_NUM_PIXELS; i++) {
-        if (pixlblink_active[i]) {
-            any_pixlblink = true;
-            break;
-        }
-    }
+    pixlblink_recompute_any();
 
     // Make sure power is available, paint the current phase now, and keep the
     // 25 ms refresh timer running so the blink animates even if underglow is off.
@@ -1288,6 +1297,30 @@ int zmk_rgb_underglow_set_pixlblink(uint32_t position, int32_t color) {
     if (any_pixlblink) {
         k_timer_start(&underglow_status_update_timer, K_NO_WAIT, K_MSEC(25));
     }
+
+    return 0;
+}
+
+// PIXLBLINK clear. Stops the blink at a position (revealing whatever is beneath:
+// &pixel override or underglow). Used by the fixed &pixlblink_off behavior.
+int zmk_rgb_underglow_clear_pixlblink(uint32_t position) {
+    if (!led_strip)
+        return -ENODEV;
+
+    if (position >= STRIP_NUM_PIXELS) {
+        LOG_WRN("pixlblink clear position %u out of range (strip is %d pixels, local half only)",
+                position, STRIP_NUM_PIXELS);
+        return -EINVAL;
+    }
+
+    if (pixlblink_slots[position].active) {
+        pixlblink_slots[position] = (struct pixlblink_slot){0};
+    }
+
+    pixlblink_recompute_any();
+
+    zmk_rgb_set_ext_power();
+    zmk_led_write_pixels();
 
     return 0;
 }

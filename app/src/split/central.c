@@ -273,12 +273,15 @@ int zmk_split_central_clear_usb_indicator(void) {
     return zmk_split_central_send_rgb_pixel(command);
 }
 
-int zmk_split_central_set_pixlblink(uint8_t position, uint32_t color) {
+int zmk_split_central_set_pixlblink(uint8_t position, uint32_t color1, uint32_t color2,
+                                    uint8_t freq_code) {
     struct zmk_split_transport_central_command command = {
         .type = ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_RGB_PIXEL,
         .data = {.set_rgb_pixel = {.op = ZMK_SPLIT_RGB_PIXEL_OP_PIXLBLINK,
                                    .position = position,
-                                   .color = color}},
+                                   .color = color1,
+                                   .color2 = color2,
+                                   .freq_code = freq_code}},
     };
     return zmk_split_central_send_rgb_pixel(command);
 }

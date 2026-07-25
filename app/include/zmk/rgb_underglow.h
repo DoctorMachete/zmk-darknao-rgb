@@ -47,21 +47,26 @@ int zmk_rgb_underglow_clear_pixels(void);
 int zmk_rgb_underglow_set_magic_pixel(uint32_t position, int32_t color);
 
 /*
- * PIXLBLINK layer (&pixlblink behavior). Sharp square-wave blink of a single
- * pixel between `color` and BLACK (off). Separate parallel layer, composited
- * ABOVE &pixel overrides but BELOW magic indicators. color < 0 stops/clears the
- * blink at that position (revealing whatever is beneath). The strip / ext-power
- * are driven on demand and the refresh timer is kept alive while any blink is
- * active, so a blink runs even when underglow is off.
+ * PIXLBLINK layer (&pixlblink preset behavior + fixed &pixlblink_off behavior).
+ * Sharp square-wave blink of a single pixel between color1 and color2 (either may
+ * be black), at a per-instance frequency, on either half. Separate parallel
+ * layer, composited ABOVE &pixel overrides but BELOW magic indicators. The strip
+ * / ext-power are driven on demand and the refresh timer is kept alive while any
+ * blink is active, so a blink runs even when underglow is off.
  *
- * Frequency is fixed in firmware for now (not a binding parameter). Encoding:
- *   freq_hz = PIXLBLINK_FREQ_CODE / 10   ->  code 5 = 0.5 Hz, code 10 = 1 Hz.
- * v001 default is 0.5 Hz. (Future: move PIXLBLINK_FREQ_CODE to Kconfig / go60.conf.)
+ * Frequency is carried by each preset instance (DT property), not a binding
+ * parameter. Encoding: freq_hz = freq_code / 10  ->  code 5 = 0.5 Hz, 10 = 1 Hz.
+ * A zero/missing code falls back to PIXLBLINK_DEFAULT_FREQ_CODE.
+ *
+ * set:   start/replace a blink at position (colors packed 0xRRGGBB).
+ * clear: stop the blink at position (used by &pixlblink_off).
  */
-#ifndef PIXLBLINK_FREQ_CODE
-#define PIXLBLINK_FREQ_CODE 5 /* 0.5 Hz */
+#ifndef PIXLBLINK_DEFAULT_FREQ_CODE
+#define PIXLBLINK_DEFAULT_FREQ_CODE 5 /* 0.5 Hz */
 #endif
-int zmk_rgb_underglow_set_pixlblink(uint32_t position, int32_t color);
+int zmk_rgb_underglow_set_pixlblink(uint32_t position, uint32_t color1, uint32_t color2,
+                                    uint8_t freq_code);
+int zmk_rgb_underglow_clear_pixlblink(uint32_t position);
 
 /*
  * Sentinel "positions" for the &pixel behavior to clear groups of overrides in
