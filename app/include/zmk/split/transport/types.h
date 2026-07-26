@@ -114,9 +114,19 @@ struct zmk_split_transport_central_command {
             uint8_t position; // local strip index on the peripheral
             uint8_t count;    // number of valid entries in positions (battery op)
             uint32_t color;   // 0xRRGGBB (set op; also color1 for pixlblink)
-            uint8_t positions[ZMK_SPLIT_RGB_PIXEL_MAX_POSITIONS];
-            uint32_t color2;   // 0xRRGGBB second blink color (pixlblink op)
-            uint8_t freq_code; // pixlblink frequency code (freq_hz = code / 10)
+            // IMPORTANT: this payload is sent with bt_gatt_write_without_response,
+            // which is capped at ATT_MTU - 3 = 20 bytes (default MTU 23). The
+            // battery op's positions[] and the pixlblink extras are never used by
+            // the same op, so they share storage here. Keeping this struct at 16
+            // bytes is REQUIRED - growing it past 20 makes every RGB pixel write
+            // fail silently on the peripheral.
+            union {
+                uint8_t positions[ZMK_SPLIT_RGB_PIXEL_MAX_POSITIONS];
+                struct {
+                    uint32_t color2;   // 0xRRGGBB second blink color (pixlblink op)
+                    uint8_t freq_code; // pixlblink frequency code (freq_hz = code / 10)
+                } blink;
+            } u;
         } set_rgb_pixel;
     } data;
 } __packed;

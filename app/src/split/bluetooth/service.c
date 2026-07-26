@@ -182,9 +182,15 @@ struct rgb_pixel_msg {
     uint8_t position;
     uint8_t count;
     uint32_t color;
-    uint8_t positions[ZMK_SPLIT_RGB_PIXEL_MAX_POSITIONS];
-    uint32_t color2;   // pixlblink second color
-    uint8_t freq_code; // pixlblink frequency code
+    // Must mirror set_rgb_pixel in types.h EXACTLY (raw memcpy from the wire).
+    // Kept at 16 bytes to stay within the 20-byte ATT write-without-response cap.
+    union {
+        uint8_t positions[ZMK_SPLIT_RGB_PIXEL_MAX_POSITIONS];
+        struct {
+            uint32_t color2;
+            uint8_t freq_code;
+        } blink;
+    } u;
 };
 
 K_MSGQ_DEFINE(rgb_pixel_msgq, sizeof(struct rgb_pixel_msg), 16, 4);
@@ -204,7 +210,7 @@ static void split_svc_update_rgb_pixel_callback(struct k_work *work) {
             zmk_rgb_underglow_clear_pixels();
             break;
         case ZMK_SPLIT_RGB_PIXEL_OP_BATTERY:
-            zmk_rgb_underglow_set_battery_indicator(msg.positions, msg.count);
+            zmk_rgb_underglow_set_battery_indicator(msg.u.positions, msg.count);
             break;
         case ZMK_SPLIT_RGB_PIXEL_OP_BATTERY_CLEAR:
             zmk_rgb_underglow_clear_battery_indicator();
@@ -216,7 +222,8 @@ static void split_svc_update_rgb_pixel_callback(struct k_work *work) {
             zmk_rgb_underglow_clear_usb_indicator();
             break;
         case ZMK_SPLIT_RGB_PIXEL_OP_PIXLBLINK:
-            zmk_rgb_underglow_set_pixlblink(msg.position, msg.color, msg.color2, msg.freq_code);
+            zmk_rgb_underglow_set_pixlblink(msg.position, msg.color, msg.u.blink.color2,
+                                            msg.u.blink.freq_code);
             break;
         case ZMK_SPLIT_RGB_PIXEL_OP_PIXLBLINK_CLEAR:
             zmk_rgb_underglow_clear_pixlblink(msg.position);

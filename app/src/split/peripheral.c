@@ -87,7 +87,7 @@ int zmk_split_transport_peripheral_command_handler(
         case ZMK_SPLIT_RGB_PIXEL_OP_CLEAR_ALL:
             return zmk_rgb_underglow_clear_pixels();
         case ZMK_SPLIT_RGB_PIXEL_OP_BATTERY:
-            return zmk_rgb_underglow_set_battery_indicator(cmd.data.set_rgb_pixel.positions,
+            return zmk_rgb_underglow_set_battery_indicator(cmd.data.set_rgb_pixel.u.positions,
                                                            cmd.data.set_rgb_pixel.count);
         case ZMK_SPLIT_RGB_PIXEL_OP_BATTERY_CLEAR:
             return zmk_rgb_underglow_clear_battery_indicator();
@@ -95,6 +95,13 @@ int zmk_split_transport_peripheral_command_handler(
             return zmk_rgb_underglow_set_usb_indicator(cmd.data.set_rgb_pixel.position);
         case ZMK_SPLIT_RGB_PIXEL_OP_USB_CLEAR:
             return zmk_rgb_underglow_clear_usb_indicator();
+        case ZMK_SPLIT_RGB_PIXEL_OP_PIXLBLINK:
+            return zmk_rgb_underglow_set_pixlblink(cmd.data.set_rgb_pixel.position,
+                                                   cmd.data.set_rgb_pixel.color,
+                                                   cmd.data.set_rgb_pixel.u.blink.color2,
+                                                   cmd.data.set_rgb_pixel.u.blink.freq_code);
+        case ZMK_SPLIT_RGB_PIXEL_OP_PIXLBLINK_CLEAR:
+            return zmk_rgb_underglow_clear_pixlblink(cmd.data.set_rgb_pixel.position);
         default:
             LOG_WRN("Unknown RGB pixel op %d", op);
             return -ENOTSUP;

@@ -244,7 +244,7 @@ int zmk_split_central_set_battery_indicator(const uint8_t *positions, uint8_t co
         .data = {.set_rgb_pixel = {.op = ZMK_SPLIT_RGB_PIXEL_OP_BATTERY, .count = count}},
     };
     for (uint8_t i = 0; i < count; i++) {
-        command.data.set_rgb_pixel.positions[i] = positions[i];
+        command.data.set_rgb_pixel.u.positions[i] = positions[i];
     }
     return zmk_split_central_send_rgb_pixel(command);
 }
@@ -280,8 +280,8 @@ int zmk_split_central_set_pixlblink(uint8_t position, uint32_t color1, uint32_t 
         .data = {.set_rgb_pixel = {.op = ZMK_SPLIT_RGB_PIXEL_OP_PIXLBLINK,
                                    .position = position,
                                    .color = color1,
-                                   .color2 = color2,
-                                   .freq_code = freq_code}},
+                                   .u = {.blink = {.color2 = color2,
+                                                   .freq_code = freq_code}}}},
     };
     return zmk_split_central_send_rgb_pixel(command);
 }
