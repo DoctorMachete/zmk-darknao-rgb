@@ -177,7 +177,7 @@ static ssize_t split_svc_update_layers(struct bt_conn *conn, const struct bt_gat
 // would drop commands (last-write-wins / coalesced submits), causing clears to
 // be lost and overrides to go stale. Use a message queue so EVERY command is
 // processed in order, none dropped.
-struct __packed rgb_pixel_msg {
+struct rgb_pixel_msg {
     uint8_t op;
     uint8_t position;
     uint8_t count;
