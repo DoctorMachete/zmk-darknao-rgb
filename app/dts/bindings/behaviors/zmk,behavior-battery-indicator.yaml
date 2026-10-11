@@ -1,0 +1,19 @@
+# Copyright (c) 2024, The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: |
+  Persistent, relocatable battery-level indicator block. The `positions`
+  property lists the physical strip pixels (local half) that form the charge
+  ramp. Invoke with param1 = 1 to show, param1 = 0 to hide.
+
+compatible: "zmk,behavior-battery-indicator"
+
+include: one_param.yaml
+
+properties:
+  positions:
+    type: array
+    required: true
+    description: |
+      Physical strip pixel indices (local half) that make up the battery block,
+      ordered from empty to full. Up to 8 entries.

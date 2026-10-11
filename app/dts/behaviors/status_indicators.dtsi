@@ -1,0 +1,33 @@
+/*
+ * Relocatable persistent status indicators for the GO60 (left half).
+ *
+ * Include this from your keymap (after the behaviors are available) and tweak
+ * the `positions` / `position` properties to taste. Then drive them from a
+ * keycode/layer listener or directly from a key:
+ *
+ *     &bat_ind 1   // show the battery block      &bat_ind 0   // hide it
+ *     &usb_ind 1   // show the USB output pixel   &usb_ind 0   // hide it
+ *
+ * Positions are PHYSICAL strip pixels on the local (left) half. The defaults
+ * below mirror the board's built-in indicator placement (see go60_lh.dts):
+ *   battery block = row-2 across columns C6..C2, USB = left thumb T1.
+ * You can use the PIXEL_LH_* names from go60-pixels.h instead of raw numbers.
+ */
+
+/ {
+    behaviors {
+        bat_ind: battery_indicator {
+            compatible = "zmk,behavior-battery-indicator";
+            #binding-cells = <1>;
+            positions = <27 23 18 13 8 4>; // PIXEL_LH_C6R2 .. PIXEL_LH_C2R2
+            display-name = "Battery Indicator";
+        };
+
+        usb_ind: usb_indicator {
+            compatible = "zmk,behavior-usb-indicator";
+            #binding-cells = <1>;
+            position = <21>;               // PIXEL_LH_T1
+            display-name = "USB Indicator";
+        };
+    };
+};

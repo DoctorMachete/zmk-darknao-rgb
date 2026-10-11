@@ -1,0 +1,132 @@
+/*
+ * Copyright (c) 2025 The ZMK Contributors
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
+#pragma once
+
+#include <zmk/hid_indicators_types.h>
+#include <zmk/sensors.h>
+#include <zephyr/sys/util.h>
+
+enum zmk_split_transport_connections_status {
+    ZMK_SPLIT_TRANSPORT_CONNECTIONS_STATUS_DISCONNECTED = 0,
+    ZMK_SPLIT_TRANSPORT_CONNECTIONS_STATUS_SOME_CONNECTED,
+    ZMK_SPLIT_TRANSPORT_CONNECTIONS_STATUS_ALL_CONNECTED,
+};
+
+struct zmk_split_transport_status {
+    bool available;
+    bool enabled;
+    enum zmk_split_transport_connections_status connections;
+};
+
+typedef struct zmk_split_transport_status (*zmk_split_transport_get_status_t)(void);
+typedef int (*zmk_split_transport_set_enabled_t)(bool enabled);
+
+enum zmk_split_transport_peripheral_event_type {
+    ZMK_SPLIT_TRANSPORT_PERIPHERAL_EVENT_TYPE_KEY_POSITION_EVENT,
+    ZMK_SPLIT_TRANSPORT_PERIPHERAL_EVENT_TYPE_SENSOR_EVENT,
+    ZMK_SPLIT_TRANSPORT_PERIPHERAL_EVENT_TYPE_INPUT_EVENT,
+    ZMK_SPLIT_TRANSPORT_PERIPHERAL_EVENT_TYPE_BATTERY_EVENT,
+};
+
+struct zmk_split_transport_peripheral_event {
+    enum zmk_split_transport_peripheral_event_type type;
+
+    union {
+        struct {
+            uint8_t position;
+            uint8_t pressed;
+        } key_position_event;
+
+        struct {
+            struct zmk_sensor_channel_data channel_data;
+
+            uint8_t sensor_index;
+        } sensor_event;
+
+        struct {
+            uint8_t reg;
+            uint8_t sync;
+            uint8_t type;
+            uint16_t code;
+            int32_t value;
+        } input_event;
+
+        struct {
+            uint8_t level;
+        } battery_event;
+    } data;
+} __packed;
+
+enum zmk_split_transport_central_command_type {
+    ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_POLL_EVENTS,
+    ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_INVOKE_BEHAVIOR,
+    ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_PHYSICAL_LAYOUT,
+    ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_HID_INDICATORS,
+    ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_RGB_LAYERS,
+    ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_RGB_PIXEL,
+} __packed;
+
+// Operations carried by a SET_RGB_PIXEL command.
+enum zmk_split_rgb_pixel_op {
+    ZMK_SPLIT_RGB_PIXEL_OP_SET = 0,           // set one pixel override (position, color)
+    ZMK_SPLIT_RGB_PIXEL_OP_CLEAR_ONE = 1,     // clear one pixel override (position)
+    ZMK_SPLIT_RGB_PIXEL_OP_CLEAR_ALL = 2,     // clear all pixel overrides
+    ZMK_SPLIT_RGB_PIXEL_OP_BATTERY = 3,       // battery block: positions[0..count-1]
+    ZMK_SPLIT_RGB_PIXEL_OP_BATTERY_CLEAR = 4, // disable battery block
+    ZMK_SPLIT_RGB_PIXEL_OP_USB = 5,           // usb indicator at position
+    ZMK_SPLIT_RGB_PIXEL_OP_USB_CLEAR = 6,     // disable usb indicator
+    ZMK_SPLIT_RGB_PIXEL_OP_PIXLBLINK = 7,       // start sharp blink (position, color)
+    ZMK_SPLIT_RGB_PIXEL_OP_PIXLBLINK_CLEAR = 8, // stop blink at position
+} __packed;
+
+#define ZMK_SPLIT_RGB_PIXEL_MAX_POSITIONS 8
+
+struct zmk_split_transport_central_command {
+    enum zmk_split_transport_central_command_type type;
+
+    union {
+        struct {
+            char behavior_dev[16];
+            uint32_t param1, param2;
+            uint32_t position;
+            uint8_t event_source;
+            uint8_t state;
+        } invoke_behavior;
+
+        struct {
+            uint8_t layout_idx;
+        } set_physical_layout;
+
+        struct {
+            zmk_hid_indicators_t indicators;
+        } set_hid_indicators;
+
+        struct {
+            uint32_t layers;
+        } set_rgb_layers;
+
+        struct {
+            uint8_t op;       // enum zmk_split_rgb_pixel_op
+            uint8_t position; // local strip index on the peripheral
+            uint8_t count;    // number of valid entries in positions (battery op)
+            uint32_t color;   // 0xRRGGBB (set op; also color1 for pixlblink)
+            // IMPORTANT: this payload is sent with bt_gatt_write_without_response,
+            // which is capped at ATT_MTU - 3 = 20 bytes (default MTU 23). The
+            // battery op's positions[] and the pixlblink extras are never used by
+            // the same op, so they share storage here. Keeping this struct at 16
+            // bytes is REQUIRED - growing it past 20 makes every RGB pixel write
+            // fail silently on the peripheral.
+            union {
+                uint8_t positions[ZMK_SPLIT_RGB_PIXEL_MAX_POSITIONS];
+                struct {
+                    uint32_t color2;   // 0xRRGGBB second blink color (pixlblink op)
+                    uint8_t freq_code; // pixlblink frequency code (freq_hz = code / 10)
+                } blink;
+            } u;
+        } set_rgb_pixel;
+    } data;
+} __packed;

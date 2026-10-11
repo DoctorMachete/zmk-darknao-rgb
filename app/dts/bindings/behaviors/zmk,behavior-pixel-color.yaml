@@ -1,0 +1,11 @@
+# Copyright (c) 2024, The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: |
+  Persistently set an arbitrary LED (by strip position) to an arbitrary
+  0xRRGGBB color, drawn on top of the underglow and surviving underglow
+  on/off. param1 is the strip position, param2 is the color (negative clears).
+
+compatible: "zmk,behavior-pixel-color"
+
+include: two_param.yaml

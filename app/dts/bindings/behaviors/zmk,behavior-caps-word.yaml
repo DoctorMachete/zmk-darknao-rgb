@@ -1,0 +1,50 @@
+# Copyright (c) 2021 The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: Caps word behavior
+
+compatible: "zmk,behavior-caps-word"
+
+include: zero_param.yaml
+
+properties:
+  continue-list:
+    type: array
+    required: true
+  mods:
+    type: int
+  enter:
+    type: phandle-array
+    specifier-space: binding
+    description: |
+      One or more behaviors triggered, in order, when caps word activates. Optional.
+      Side-effect-only outputs (RGB, backlight, display, buzzer) -- do NOT bind key output
+      here: the resulting keycode feeds back into the word-break check and switches caps
+      word straight off again.
+  exit:
+    type: phandle-array
+    specifier-space: binding
+    description: |
+      One or more behaviors triggered, in order, when caps word deactivates -- whether by
+      toggling it off or by a word-breaking key. Optional. Fires during the breaking
+      keypress, before that key reaches the host.
+  not-press-release-outputs:
+    type: boolean
+    description: |
+      Fire enter/exit as immediate, side-effect-only outputs instead of emulated key presses.
+      When set, each binding's press handler is invoked directly and synchronously (no
+      behavior queue, no tap-ms/wait-ms delay) and no release is sent. Same name, meaning and
+      default as the equivalent property in the zmk-listeners module. Do NOT set it for
+      bindings that need real press/release semantics.
+  tap-ms:
+    type: int
+    default: 5
+    description: |
+      Time to wait (in milliseconds) between the press and release of each enter/exit
+      binding on the default queued path. Ignored when not-press-release-outputs is set.
+  wait-ms:
+    type: int
+    default: 5
+    description: |
+      Time to wait (in milliseconds) before the next binding in an enter/exit chain on the
+      default queued path. Ignored when not-press-release-outputs is set.

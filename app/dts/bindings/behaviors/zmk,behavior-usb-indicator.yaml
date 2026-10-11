@@ -1,0 +1,17 @@
+# Copyright (c) 2024, The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: |
+  Persistent, relocatable USB output indicator. The `position` property is the
+  physical strip pixel (local half) colored by USB connection state. Invoke with
+  param1 = 1 to show, param1 = 0 to hide.
+
+compatible: "zmk,behavior-usb-indicator"
+
+include: one_param.yaml
+
+properties:
+  position:
+    type: int
+    required: true
+    description: Physical strip pixel index (local half) for the USB indicator.

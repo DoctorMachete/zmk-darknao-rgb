@@ -1,0 +1,15 @@
+/*
+ * Copyright (c) 2024 The ZMK Contributors
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
+/ {
+    behaviors {
+        pixel: pixel_color {
+            compatible = "zmk,behavior-pixel-color";
+            #binding-cells = <2>;
+            display-name = "Pixel Color";
+        };
+    };
+};
