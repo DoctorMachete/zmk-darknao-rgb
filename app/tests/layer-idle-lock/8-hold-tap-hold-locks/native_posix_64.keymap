@@ -1,0 +1,21 @@
+#include "../hold_tap_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* quick tap: DEL, nothing armed */
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_RELEASE(0,1,300)
+        /* held: hold decided at 200 -> &mo 1, lock at 700 -> F13 */
+        ZMK_MOCK_PRESS(0,1,900)
+        ZMK_MOCK_RELEASE(0,1,10)
+        /* still layer 1: N1 */
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+        /* tap the same thumb: &tog 1 in layer 1 -> off, F14 */
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_RELEASE(0,1,10)
+        /* base: B */
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+    >;
+};

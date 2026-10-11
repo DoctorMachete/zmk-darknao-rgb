@@ -1,0 +1,17 @@
+#include <dt-bindings/zmk/keys.h>
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/kscan_mock.h>
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        ZMK_MOCK_PRESS(0,1,100)
+        /* N1 held for 1000 ms: not idle while it is down */
+        ZMK_MOCK_PRESS(0,0,1000)
+        /* clock restarts at its release; &mo released 300 ms later: no lock */
+        ZMK_MOCK_RELEASE(0,0,300)
+        ZMK_MOCK_RELEASE(0,1,1000)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+    >;
+};
