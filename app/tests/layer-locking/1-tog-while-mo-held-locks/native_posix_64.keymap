@@ -1,0 +1,20 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* &mo 1 held: layer 1 on, not locked */
+        ZMK_MOCK_PRESS(0,1,10)
+        /* &tog 1 inside layer 1: the layer is on but unlocked, so this LOCKS it */
+        ZMK_MOCK_PRESS(1,0,10)
+        ZMK_MOCK_RELEASE(1,0,10)
+        /* &mo release: ignored */
+        ZMK_MOCK_RELEASE(0,1,10)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+        /* &tog 1 again: off and unlocked */
+        ZMK_MOCK_PRESS(1,0,10)
+        ZMK_MOCK_RELEASE(1,0,10)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+    >;
+};

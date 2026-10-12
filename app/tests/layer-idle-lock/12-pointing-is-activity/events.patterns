@@ -1,0 +1,11 @@
+s/.*hid_listener_keycode/kp/p
+s/.*mo_keymap_binding/mo/p
+s/.*tog_keymap_binding/tog/p
+s/.*set_layer_state: //p
+s/.*zmk_layer_idle_lock_momentary_pressed: /idle-lock: /p
+s/.*zmk_layer_idle_lock_momentary_released: /idle-lock: /p
+s/.*lil_timeout: /idle-lock: /p
+s/.*lil_on_layer: /idle-lock: /p
+s/.*lil_on_lock: /idle-lock: /p
+s/.*lil_fire_exit: /idle-lock: /p
+s/.*hid_mouse_movement_set: /mouse: /p

@@ -1,0 +1,17 @@
+#define ANY_LOCK
+#include "../any_lock_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* idle lock: one F13, not a second one for its own lock event */
+        ZMK_MOCK_PRESS(0,1,600)
+        ZMK_MOCK_RELEASE(0,1,10)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+        /* &to 0: one F14, not a second one for the unlock event */
+        ZMK_MOCK_PRESS(1,1,10)
+        ZMK_MOCK_RELEASE(1,1,10)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+    >;
+};

@@ -1,0 +1,40 @@
+#include <dt-bindings/zmk/keys.h>
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/kscan_mock.h>
+
+/*
+ * Like behavior_keymap.dtsi, plus a second &tog 1 inside layer 1 at (1,0), so a lock can be
+ * taken while &mo 1 is still held at (0,1). Define ANY_LOCK before including this file to
+ * set `triggers-on-any-lock`.
+ */
+/ {
+    layer_idle_lock {
+        compatible = "zmk,layer-idle-lock";
+
+        lock_1 {
+            layer = <1>;
+            idle-ms = <500>;
+            enter = <&kp F13>;
+            exit = <&kp F14>;
+#ifdef ANY_LOCK
+            triggers-on-any-lock;
+#endif
+        };
+    };
+
+    keymap {
+        compatible = "zmk,keymap";
+
+        default_layer {
+            bindings = <
+                &kp B  &mo 1
+                &kp C  &tog 1>;
+        };
+
+        layer_1 {
+            bindings = <
+                &kp N1  &tog 1
+                &tog 1  &to 0>;
+        };
+    };
+};

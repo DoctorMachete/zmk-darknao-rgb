@@ -1,0 +1,21 @@
+#define ANY_LOCK
+#include "../any_lock_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* hold &mo 1: armed */
+        ZMK_MOCK_PRESS(0,1,100)
+        /* &tog 1 inside layer 1 while &mo is held: locks, F13 at once, timer disarmed */
+        ZMK_MOCK_PRESS(1,0,10)
+        ZMK_MOCK_RELEASE(1,0,1000)
+        /* release &mo: ignored, the layer is locked; no idle F13 ever came */
+        ZMK_MOCK_RELEASE(0,1,10)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+        /* &tog 1 again: off, F14 */
+        ZMK_MOCK_PRESS(1,0,10)
+        ZMK_MOCK_RELEASE(1,0,10)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+    >;
+};

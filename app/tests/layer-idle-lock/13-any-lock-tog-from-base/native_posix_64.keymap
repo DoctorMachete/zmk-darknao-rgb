@@ -1,0 +1,19 @@
+#define ANY_LOCK
+#include "../any_lock_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* &tog 1 from the base layer: on + locked, F13 at once */
+        ZMK_MOCK_PRESS(1,1,10)
+        ZMK_MOCK_RELEASE(1,1,1000)
+        /* layer 1: N1, no second F13 */
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+        /* &tog 1 inside layer 1: off + unlocked, a single F14 */
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_RELEASE(0,1,10)
+        /* base layer: B */
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+    >;
+};

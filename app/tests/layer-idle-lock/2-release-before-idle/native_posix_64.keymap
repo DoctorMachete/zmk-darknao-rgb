@@ -1,0 +1,14 @@
+#include <dt-bindings/zmk/keys.h>
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/kscan_mock.h>
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* released at 300 ms < 500: plain momentary, nothing locks later either */
+        ZMK_MOCK_PRESS(0,1,300)
+        ZMK_MOCK_RELEASE(0,1,1000)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+    >;
+};

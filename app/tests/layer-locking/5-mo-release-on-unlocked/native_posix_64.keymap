@@ -1,0 +1,13 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* plain &mo with no lock anywhere: on while held, off on release */
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+        ZMK_MOCK_RELEASE(0,1,10)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+    >;
+};

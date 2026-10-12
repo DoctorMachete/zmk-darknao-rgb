@@ -1,0 +1,73 @@
+# Copyright (c) 2026 The ZMK Contributors
+# SPDX-License-Identifier: MIT
+#
+# Fork patch: idle-lock for momentary layers. See PATCH_LAYER_IDLE_LOCK.md.
+
+description: |
+  Idle-lock for momentary layers. While a listed layer is held on by &mo (directly, or as
+  the hold binding of a hold-tap), it is locked on once the &mo key has been held for
+  idle-ms with no other key pressed or held. Releasing the &mo key then leaves the layer
+  on; a locking &tog / &to turns it off (PATCH_LAYER_LOCKING.md). Only the first node with
+  this compatible is used.
+
+compatible: "zmk,layer-idle-lock"
+
+properties:
+  tap-ms:
+    type: int
+    default: 5
+    description: |
+      Time (ms) between the press and release of each enter/exit binding on the default
+      queued path. Ignored by children that set not-press-release-outputs.
+  wait-ms:
+    type: int
+    default: 5
+    description: |
+      Time (ms) before the next binding of an enter/exit chain on the default queued path.
+      Ignored by children that set not-press-release-outputs.
+
+child-binding:
+  description: "One lockable layer"
+
+  properties:
+    layer:
+      type: int
+      required: true
+      description: |
+        The layer to lock. One layer per child node; the first child that names a layer
+        wins.
+    idle-ms:
+      type: int
+      default: 2000
+      description: |
+        How long (ms) the &mo key must be held with no other key activity before the
+        layer locks. The clock restarts on every key press or release, and stops while
+        any key that was not already down when the layer was armed is held. 0 locks as
+        soon as the layer is held.
+    enter:
+      type: phandle-array
+      specifier-space: binding
+      description: |
+        Behaviors fired, in order, when the lock engages (user feedback, e.g. &pixel or
+        &pixlblink). Optional. Side-effect-only outputs are the intended use.
+    exit:
+      type: phandle-array
+      specifier-space: binding
+      description: |
+        Behaviors fired, in order, when a layer whose `enter` fired is turned off or
+        unlocked (a locking &tog or &to). Optional. Does not fire when the layer is
+        released before it locked, nor for a lock that did not fire `enter`.
+    triggers-on-any-lock:
+      type: boolean
+      description: |
+        Also fire `enter` when the layer is locked by anything else (&tog from another
+        layer, &tog while &mo holds it, &to), and `exit` when that lock ends. The idle
+        lock works as usual. Without it, only this node's own idle lock fires enter/exit;
+        a layer locked by &tog or &to gets no feedback from this node.
+    not-press-release-outputs:
+      type: boolean
+      description: |
+        Fire enter/exit as immediate, side-effect-only outputs instead of emulated key
+        presses: each binding's press handler is invoked directly and synchronously (no
+        behavior queue, no tap-ms/wait-ms) and no release is sent. Same name and meaning as
+        in zmk-listeners and on caps word. Set it for the fork's pixel behaviors.

@@ -1,0 +1,11 @@
+#include "../hold_tap_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* held 400 ms (hold at 200, armed) then released: momentary, no lock */
+        ZMK_MOCK_PRESS(0,1,400)
+        ZMK_MOCK_RELEASE(0,1,1000)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+    >;
+};

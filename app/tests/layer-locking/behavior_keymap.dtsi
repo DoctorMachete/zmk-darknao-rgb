@@ -1,0 +1,38 @@
+#include <dt-bindings/zmk/keys.h>
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/kscan_mock.h>
+
+/*
+ * Fork patch: upstream layer locking (PATCH_LAYER_LOCKING.md). Stock &tog and &to lock;
+ * &mo does not; &tog_nl is an opt-out instance without `locking;`.
+ */
+/ {
+    behaviors {
+        tog_nl: tog_nl {
+            compatible = "zmk,behavior-toggle-layer";
+            #binding-cells = <1>;
+        };
+    };
+
+    keymap {
+        compatible = "zmk,keymap";
+
+        default_layer {
+            bindings = <
+                &kp B   &mo 1
+                &tog 1  &to 1
+                &kp C   &tog_nl 1>;
+        };
+
+        layer_1 {
+            bindings = <
+                &kp N1  &trans
+                &tog 1  &to 0
+                &kp N3  &tog_nl 1>;
+        };
+    };
+};
+
+&kscan {
+    rows = <3>;
+};
