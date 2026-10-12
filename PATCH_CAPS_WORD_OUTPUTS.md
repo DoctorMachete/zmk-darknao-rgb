@@ -1,11 +1,14 @@
 # PATCH — `caps_word` `enter` / `exit` outputs
 
-**Status: implemented in the fork, not yet built or flashed.** Adds `enter` / `exit`
+**Status: working on hardware** (GO60: `blink_capsword` on `PIXEL_LH_T2` /
+`PIXEL_RH_T2`, drawn over `&pixel` overrides, confirmed 2026-10-12). Adds `enter` / `exit`
 behavior chains to `zmk,behavior-caps-word`, mirroring the `zmk-listeners` API, so
 caps-word activation can drive `&pixlblink` — and later a buzzer, display, or haptic,
 anything that is a behavior.
 
-Shared background: `PATCH_ARCHITECTURE.md`. Consumer of `PATCH_PIXLBLINK.md`.
+Shared background: `PATCH_ARCHITECTURE.md`. Consumer of `PATCH_PIXLBLINK.md`. The same
+behavior's idle timeout (`idle-timeout-ms`) is a separate feature:
+`PATCH_CAPS_WORD_IDLE_TIMEOUT.md`.
 
 ---
 
@@ -92,10 +95,14 @@ struct behavior_caps_word_config {
     bool not_press_release_outputs;
     uint16_t tap_ms;
     uint16_t wait_ms;
+    int32_t idle_timeout_ms;      /* PATCH_CAPS_WORD_IDLE_TIMEOUT.md */
     uint8_t continuations_count;
     struct caps_word_continue_item continuations[];
 };
 ```
+
+The idle-timeout patch also added fields to `behavior_caps_word_data`, an init function,
+and a timer start/cancel inside `set_caps_word_state()`; see that doc §2.
 
 ### 3.2 The state chokepoint
 
@@ -190,7 +197,8 @@ Adds `enter`, `exit` (both `phandle-array`, `specifier-space: binding`),
    Side-effect-only outputs only. (This is §1.1's failure mode arriving by another door.)
 2. **`exit` fires during the breaking keypress**, inside the keycode-event callback,
    before that key reaches the host. Fine for an indicator; worth knowing if a future
-   binding is order-sensitive.
+   binding is order-sensitive. With `idle-timeout-ms` set, `exit` can also fire from the
+   idle timer, with no key involved (`PATCH_CAPS_WORD_IDLE_TIMEOUT.md` §4.2).
 3. **`&pixlblink_off` only reveals what is underneath.** It does not clear a `&pixel`
    override at the same position — which §7 turns into a feature.
 
@@ -294,3 +302,7 @@ Keymap gains one preset node and three guarded lines.
 
 **A Zephyr build cannot be run here** (working practice §9) — CI plus a flash is still
 the real test.
+
+**Hardware (2026-10-12):** built by CI, flashed, working: caps word blinks
+`blink_capsword` on both halves, drawn over the `&pixel` overrides on the same LEDs, and
+`exit` stops it.

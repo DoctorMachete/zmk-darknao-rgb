@@ -48,3 +48,12 @@ properties:
     description: |
       Time to wait (in milliseconds) before the next binding in an enter/exit chain on the
       default queued path. Ignored when not-press-release-outputs is set.
+  idle-timeout-ms:
+    type: int
+    default: 0
+    description: |
+      Turn caps word off after this many milliseconds with no key activity: no key pressed
+      or released on either half, and no key code sent. Each one restarts the count, so this
+      measures a pause in typing, not the length of the word. `exit` fires as for any other
+      deactivation. 0 (the default) means no timeout. Fork patch, see
+      PATCH_CAPS_WORD_IDLE_TIMEOUT.md.

@@ -1,0 +1,3 @@
+s/.*hid_listener_keycode_//p
+s/.*caps_word_listener: /break: /p
+s/.*caps_word_idle_timeout: /idle: /p

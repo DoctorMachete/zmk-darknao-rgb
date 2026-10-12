@@ -12,6 +12,7 @@ via the DoctorMachete mirror). **Start here.**
 | **`PATCH_MAGIC_INDICATOR.md`** | `&magic_indicator_*` — relocatable, live-updating BLE/USB status indicators. |
 | **`PATCH_PIXLBLINK.md`** | `&pixlblink` presets + `&pixlblink_off` — sharp two-colour blink at a per-preset frequency. |
 | **`PATCH_CAPS_WORD_OUTPUTS.md`** | `enter` / `exit` behavior chains on `zmk,behavior-caps-word` — drives an indicator (PIXLBLINK today) from caps-word activation. |
+| **`PATCH_CAPS_WORD_IDLE_TIMEOUT.md`** | `idle-timeout-ms` on `zmk,behavior-caps-word` — caps word turns itself off after a pause in typing and fires `exit`. |
 | **`PATCH_LAYER_LOCKING.md`** | Upstream ZMK layer locking, ported: stock `&tog` / `&to` lock, `&mo` doesn't, custom instances opt in with `locking;`. Lock changes raise `zmk_layer_lock_changed`. |
 | **`PATCH_LAYER_IDLE_LOCK.md`** | `zmk,layer-idle-lock` — a layer held by `&mo` locks itself on after an idle hold, with `enter` / `exit` feedback chains; `triggers-on-any-lock` extends the feedback to `&tog` / `&to` locks. |
 | **`PATCH_BUGFIX_HOLD_TAP_PRIOR_IDLE.md`** | Bug fix: hold-tap `require-prior-idle-ms` ≤ 0 ("disabled") could still force an instant tap after a macro-emitting hold-tap. |
@@ -24,8 +25,9 @@ via the DoctorMachete mirror). **Start here.**
 | `&pixel` | **Working**, both halves |
 | MAGIC indicators | **Working**, LH (see LH-only caveat in its doc) |
 | PIXLBLINK presets + off | **Working**, both halves |
-| `caps_word` `enter` / `exit` outputs | **Implemented, not yet flashed** |
-| hold-tap prior-idle ≤ 0 fix | **Implemented, not yet flashed** |
+| `caps_word` `enter` / `exit` outputs | **Working on hardware** (blink on both halves, drawn over `&pixel`) |
+| `caps_word` `idle-timeout-ms` | **Implemented and tested off-hardware**, not yet flashed |
+| hold-tap prior-idle ≤ 0 fix | **Working on hardware** (GitHub build; the MoErgo build never had the bug) |
 | layer locking (upstream semantics) | **Working on hardware** (first test, GitHub build); MoErgo build compiles |
 | layer idle-lock (`zmk,layer-idle-lock`) | **Working on hardware**, LNPAD + RNPAD, both halves, with `triggers-on-any-lock` |
 | send-time pixel grouping (`PATCH_ARCHITECTURE.md` §5.4) | **On hardware**; fewer right-half writes. Smooth unlocks also need the latency setting in §5.5 |

@@ -1,0 +1,45 @@
+#include <dt-bindings/zmk/keys.h>
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/kscan_mock.h>
+
+&caps_word {
+    idle-timeout-ms = <500>;
+    exit = <&kp F14>;
+};
+
+/ {
+    macros {
+        /* three A, 410 ms apart, from one key press */
+        slow_a: slow_a {
+            compatible = "zmk,behavior-macro";
+            #binding-cells = <0>;
+            tap-ms = <10>;
+            wait-ms = <400>;
+            bindings = <&kp A &kp A &kp A>;
+        };
+    };
+
+    keymap {
+        compatible = "zmk,keymap";
+
+        default_layer {
+            bindings = <
+                &caps_word &kp A
+                &slow_a    &kp MINUS>;
+        };
+    };
+};
+
+&kscan {
+    events = <
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+        /* macro key tapped at t=20..30; it types A at ~t=20, 430, 840. No key is touched
+         * after t=30, so only the key codes keep caps word on: all three shifted */
+        ZMK_MOCK_PRESS(1,0,10)
+        ZMK_MOCK_RELEASE(1,0,1500)
+        /* timed out after the last A (F14); a, unshifted */
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_RELEASE(0,1,10)
+    >;
+};

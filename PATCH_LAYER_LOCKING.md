@@ -161,9 +161,12 @@ lock listen to `layer_state_changed` for lock changes (upstream re-raises it) an
    the trackpad (`zip_temp_layer`): the first tap locked, the second closed. **Resolved**
    with the locking `toggle-mode = "off"` exit key of §2.1 (`macroUI_TOG_EXIT`).
 2. **A locked layer ignores every non-locking switch-off**: `&mo` / `&sl` release,
-   conditional layers, `zip_temp_layer` timeouts, modules. E.g. after a double tap of
-   `td_LAYER__NUM` (`&to LAYER__NUM`), a single tap of it (`&mo LAYER__NUM`) no longer
-   leaves NUM; `&to LAYER__CMKDH` does.
+   conditional layers, `zip_temp_layer` timeouts, modules. In the GO60 keymap this
+   touches nothing in practice. Checked: `td_LAYER__NUM` (editor-generated tap-dance on
+   the QWERTY layer's `LH_T1`: tap/hold `&mo LAYER__NUM`, double tap `&to LAYER__NUM`)
+   now locks NUM on the double tap, but `&to` also turns QWERTY off, so that key is not
+   reachable inside NUM (NUM has a shift hold-tap there) and NUM is left with `&to`, as
+   before.
 3. **MoErgo builds differ.** MoErgo's firmware has no layer locking, so the same keymap
    behaves the 24.12 way there. Anything relying on locks (or a `locking;` property) must
    stay behind `#ifdef TESTGITHUB`.

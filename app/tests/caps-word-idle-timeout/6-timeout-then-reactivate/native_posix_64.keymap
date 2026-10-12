@@ -1,0 +1,21 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* on at t=0, idle: times out at t=510 (F14) */
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,600)
+        /* a, unshifted */
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_RELEASE(0,1,10)
+        /* on again at t=630 */
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+        /* A, shifted; idle again: second timeout (F14) */
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_RELEASE(0,1,600)
+        /* a, unshifted */
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_RELEASE(0,1,10)
+    >;
+};

@@ -1,0 +1,16 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* on at t=0, released t=10 */
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+        /* &none pressed at t=20 and held 700 ms: only the press and release count, so
+         * caps word times out mid-hold at t=520 (F14) */
+        ZMK_MOCK_PRESS(1,0,700)
+        ZMK_MOCK_RELEASE(1,0,10)
+        /* a, unshifted */
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_RELEASE(0,1,10)
+    >;
+};

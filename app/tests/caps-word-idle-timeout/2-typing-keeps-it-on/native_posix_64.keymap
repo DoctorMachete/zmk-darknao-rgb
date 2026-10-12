@@ -1,0 +1,23 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* caps word on; then five A, 450 ms apart: 2.2 s in all, no gap reaches 500 */
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,440)
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_RELEASE(0,1,440)
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_RELEASE(0,1,440)
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_RELEASE(0,1,440)
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_RELEASE(0,1,440)
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_RELEASE(0,1,440)
+        /* MINUS breaks the word: one F14, before MINUS */
+        ZMK_MOCK_PRESS(1,1,10)
+        ZMK_MOCK_RELEASE(1,1,600)
+        /* the timer was cancelled: no second F14 during the 600 ms above */
+    >;
+};

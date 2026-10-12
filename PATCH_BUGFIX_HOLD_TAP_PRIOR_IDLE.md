@@ -1,6 +1,7 @@
 # PATCH — hold-tap `require-prior-idle-ms` fires while "disabled"
 
-**Status: implemented in the fork, not yet built or flashed.** A one-condition guard in
+**Status: working on hardware** (GitHub build, confirmed 2026-10-12; the MoErgo build
+already behaved correctly). A one-condition guard in
 `is_quick_tap()` so prior-idle only applies when it is `> 0`. Upstream ZMK `main` carries
 the same code; the fork inherited it unchanged.
 
@@ -128,7 +129,9 @@ bug.
 - `git apply --check` passes against the fork as uploaded.
 - ZMK's own hold-tap tests only use `require-prior-idle-ms` of 100 and 500, so none
   takes the changed path.
-- **Not compiled into firmware, not tested on hardware.**
+- Off-hardware only at the time of writing. **Since then:** built by CI, flashed, and the
+  §6 sequences confirmed on the GitHub build (2026-10-12). MoErgo's firmware never showed
+  the bug. The §4 `quick-tap-ms` side effect on the smart-space keys is still unchecked.
 
 ## 6. Hardware test (keymap unchanged, ACCENTS on)
 

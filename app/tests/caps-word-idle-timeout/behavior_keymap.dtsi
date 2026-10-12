@@ -1,0 +1,29 @@
+#include <dt-bindings/zmk/keys.h>
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/kscan_mock.h>
+
+/*
+ * Fork: caps word `idle-timeout-ms` (PATCH_CAPS_WORD_IDLE_TIMEOUT.md).
+ *
+ * (0,0) &caps_word    (0,1) A
+ * (1,0) &none         (1,1) MINUS, breaks the word
+ *
+ * `exit` is &kp F14 so every deactivation shows in the key log. Key output is safe on
+ * `exit` (caps word is already off when it fires); never put it on `enter`.
+ */
+&caps_word {
+    idle-timeout-ms = <500>;
+    exit = <&kp F14>;
+};
+
+/ {
+    keymap {
+        compatible = "zmk,keymap";
+
+        default_layer {
+            bindings = <
+                &caps_word &kp A
+                &none      &kp MINUS>;
+        };
+    };
+};

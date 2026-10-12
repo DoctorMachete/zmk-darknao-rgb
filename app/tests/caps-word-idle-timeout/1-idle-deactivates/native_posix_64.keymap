@@ -1,0 +1,15 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* caps word on at t=0 */
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+        /* A, shifted; last activity at t=30 */
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_RELEASE(0,1,600)
+        /* timed out at t=530 (F14); a, unshifted */
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_RELEASE(0,1,10)
+    >;
+};

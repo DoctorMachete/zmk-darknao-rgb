@@ -338,6 +338,9 @@ that is the order of `target_sources()` lines in `app/CMakeLists.txt`. A listene
 must see raw key events before hold-tap / combo capture and replay them has to be listed
 above them; `layer_idle_lock.c` is, deliberately (`PATCH_LAYER_IDLE_LOCK.md` §4.4). To
 check a build: `arm-zephyr-eabi-nm -n zmk.elf | grep zmk_event_sub_.*position_state_changed`.
+`behavior_caps_word` also appears in that list (after hold-tap, before combo / keymap): it
+only timestamps key activity for its idle timeout and always bubbles, so its place is not
+load-bearing (`PATCH_CAPS_WORD_IDLE_TIMEOUT.md` §2.4).
 
 ### 7.2 Layer locks
 
