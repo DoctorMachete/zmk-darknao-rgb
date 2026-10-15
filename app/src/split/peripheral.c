@@ -96,10 +96,11 @@ int zmk_split_transport_peripheral_command_handler(
         case ZMK_SPLIT_RGB_PIXEL_OP_USB_CLEAR:
             return zmk_rgb_underglow_clear_usb_indicator();
         case ZMK_SPLIT_RGB_PIXEL_OP_PIXLBLINK:
-            return zmk_rgb_underglow_set_pixlblink(cmd.data.set_rgb_pixel.position,
-                                                   cmd.data.set_rgb_pixel.color,
-                                                   cmd.data.set_rgb_pixel.u.blink.color2,
-                                                   cmd.data.set_rgb_pixel.u.blink.freq_code);
+            return zmk_rgb_underglow_set_pixlblink_ex(cmd.data.set_rgb_pixel.position,
+                                                      cmd.data.set_rgb_pixel.color,
+                                                      cmd.data.set_rgb_pixel.u.blink.color2,
+                                                      cmd.data.set_rgb_pixel.u.blink.freq_code,
+                                                      cmd.data.set_rgb_pixel.u.blink.blinks);
         case ZMK_SPLIT_RGB_PIXEL_OP_PIXLBLINK_CLEAR:
             return zmk_rgb_underglow_clear_pixlblink(cmd.data.set_rgb_pixel.position);
         // Fork: grouped pixel ops (PATCH_ARCHITECTURE.md §5.4). Only the BLE central builds

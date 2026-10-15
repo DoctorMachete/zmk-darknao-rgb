@@ -123,7 +123,7 @@ Cross-half plumbing shared by all RGB features.
 | `BATTERY_CLEAR` | 4 | — |
 | `USB` | 5 | position |
 | `USB_CLEAR` | 6 | — |
-| `PIXLBLINK` | 7 | position, color (=color1), `u.blink.color2`, `u.blink.freq_code` |
+| `PIXLBLINK` | 7 | position, color (=color1), `u.blink.color2`, `u.blink.freq_code`, `u.blink.blinks` (0 = until cleared) |
 | `PIXLBLINK_CLEAR` | 8 | position |
 | `SET_MANY` | 9 | color, count, `u.positions[]` — built only by the central's send loop (§5.4) |
 | `CLEAR_MANY` | 10 | count, `u.positions[]` — built only by the central's send loop (§5.4) |
@@ -156,10 +156,16 @@ struct {
         struct {                          //   share storage.
             uint32_t color2;      // @8
             uint8_t  freq_code;   // @12
-        } blink;
+            uint8_t  blinks;      // @13  blink-count; was padding (the struct is 8 bytes
+        } blink;                  //      either way)
     } u;
 } set_rgb_pixel;        // sizeof == 16
 ```
+
+**Checked at build time** (since the blink-count patch, `app/src/split/bluetooth/service.c`):
+the peripheral's mirror `rgb_pixel_msg` has the wire struct's size and field offsets, and
+is ≤ 20 bytes. A layout slip or an oversize payload now fails the right-half build instead
+of silently killing pixel writes.
 
 **Rule:** never let `set_rgb_pixel` exceed 20 bytes. More per-op state → overlap it
 into the union, or raise `CONFIG_BT_L2CAP_TX_MTU` on **both** halves (changes split

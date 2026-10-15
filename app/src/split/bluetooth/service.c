@@ -189,9 +189,29 @@ struct rgb_pixel_msg {
         struct {
             uint32_t color2;
             uint8_t freq_code;
+            uint8_t blinks; // fork: blink-count
         } blink;
     } u;
 };
+
+// Constraints #1 / #2 (PATCH_ARCHITECTURE.md §5.1-5.2), checked at build time: the mirror
+// is the wire struct byte for byte, and the wire struct fits one 20-byte ATT write.
+#define RGB_PIXEL_WIRE_OFFSET(member)                                                              \
+    (offsetof(struct zmk_split_transport_central_command, data.set_rgb_pixel.member) -             \
+     offsetof(struct zmk_split_transport_central_command, data.set_rgb_pixel))
+BUILD_ASSERT(sizeof(struct rgb_pixel_msg) ==
+                 sizeof(((struct zmk_split_transport_central_command *)0)->data.set_rgb_pixel),
+             "rgb_pixel_msg must mirror set_rgb_pixel exactly");
+BUILD_ASSERT(offsetof(struct rgb_pixel_msg, color) == RGB_PIXEL_WIRE_OFFSET(color) &&
+                 offsetof(struct rgb_pixel_msg, u.blink.color2) ==
+                     RGB_PIXEL_WIRE_OFFSET(u.blink.color2) &&
+                 offsetof(struct rgb_pixel_msg, u.blink.freq_code) ==
+                     RGB_PIXEL_WIRE_OFFSET(u.blink.freq_code) &&
+                 offsetof(struct rgb_pixel_msg, u.blink.blinks) ==
+                     RGB_PIXEL_WIRE_OFFSET(u.blink.blinks),
+             "rgb_pixel_msg field offsets must match set_rgb_pixel");
+BUILD_ASSERT(sizeof(struct rgb_pixel_msg) <= 20,
+             "RGB pixel payload over the 20-byte ATT write-without-response ceiling");
 
 K_MSGQ_DEFINE(rgb_pixel_msgq, sizeof(struct rgb_pixel_msg), 16, 4);
 
@@ -222,8 +242,8 @@ static void split_svc_update_rgb_pixel_callback(struct k_work *work) {
             zmk_rgb_underglow_clear_usb_indicator();
             break;
         case ZMK_SPLIT_RGB_PIXEL_OP_PIXLBLINK:
-            zmk_rgb_underglow_set_pixlblink(msg.position, msg.color, msg.u.blink.color2,
-                                            msg.u.blink.freq_code);
+            zmk_rgb_underglow_set_pixlblink_ex(msg.position, msg.color, msg.u.blink.color2,
+                                               msg.u.blink.freq_code, msg.u.blink.blinks);
             break;
         case ZMK_SPLIT_RGB_PIXEL_OP_PIXLBLINK_CLEAR:
             zmk_rgb_underglow_clear_pixlblink(msg.position);

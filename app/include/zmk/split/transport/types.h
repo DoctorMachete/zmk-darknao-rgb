@@ -129,6 +129,10 @@ struct zmk_split_transport_central_command {
                 struct {
                     uint32_t color2;   // 0xRRGGBB second blink color (pixlblink op)
                     uint8_t freq_code; // pixlblink frequency code (freq_hz = code / 10)
+                    // Fork: blink-count (PATCH_PIXLBLINK.md §2.3). 0 = until cleared. Sits in
+                    // what was padding: this struct is 8 bytes with or without it, so the
+                    // payload stays 16. The peripheral mirror in bluetooth/service.c must match.
+                    uint8_t blinks;
                 } blink;
             } u;
         } set_rgb_pixel;

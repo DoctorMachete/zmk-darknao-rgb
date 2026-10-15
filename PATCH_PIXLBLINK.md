@@ -1,7 +1,8 @@
 # PATCH — `&pixlblink` presets + `&pixlblink_off`
 
 **Status: working on hardware, both halves.** Sharp square-wave blink of one pixel
-between two colours, at a per-preset frequency.
+between two colours, at a per-preset frequency. **`blink-count` (blink N times, then stop
+by itself, §2.3): implemented and tested off-hardware, not yet flashed.**
 
 Shared background: `PATCH_ARCHITECTURE.md`. Sibling layers: `PATCH_PIXEL.md`,
 `PATCH_MAGIC_INDICATOR.md`.
@@ -50,6 +51,7 @@ stopped by a fixed companion:
   | `color1` | `0xFFFFFF` | ON half-cycle colour |
   | `color2` | `0x000000` | OFF half-cycle colour (black = classic blink) |
   | `frequency` | `5` | freq code; **`freq_hz = frequency / 10`** |
+  | `blink-count` | `0` | `0` = blink until `&pixlblink_off`; `1..255` = blink that many times, then stop by itself (§2.3) |
 
 - Multi-instance via `DT_INST_FOREACH_STATUS_OKAY(PB_INST)` with a per-instance
   `behavior_pixlblink_config`. The handler resolves the invoked instance with
@@ -74,6 +76,44 @@ stopped by a fixed companion:
 | 5 | 0.5 | 1000 ms |
 | 10 | 1 | 500 ms |
 | 20 | 2 | 250 ms |
+| 40 | 4 | 125 ms |
+
+### 2.3 Counted blinks: `blink-count`
+
+For a blink that should happen once (or a few times) and then go away by itself, such as
+feedback for an autocorrect:
+
+```dts
+blink_autocorrect: blink_autocorrect {
+    compatible = "zmk,behavior-pixlblink";
+    #binding-cells = <1>;
+    frequency = <40>;          /* 125 ms halves */
+    color1 = <PX_CYAN>;
+    blink-count = <1>;
+};
+/* in the correction's bindings: &blink_autocorrect PIXEL_LH_C2R3 &blink_autocorrect PIXEL_RH_C2R3 */
+```
+
+- **Timing.** A counted blink is timed from the moment it starts, so it always opens on
+  `color1`: N ON halves with `color2` halves between them, `2N − 1` half-periods in all
+  (`blink-count = <1>` at 125 ms halves is one 125 ms flash). A free-running blink
+  (`0`) keeps the uptime-derived phase it always had.
+- **The end.** After its last ON half the slot frees itself, exactly as `&pixlblink_off`
+  would: whatever is beneath comes back (a `&pixel` override, the layer colour,
+  underglow). It ends at the first 25 ms frame past its end, so the last ON half can run
+  up to one frame long.
+- **Both halves, no extra traffic.** The count rides in the start command (§4); each half
+  ends its own blink. Nothing is sent at the end, and nothing waits in the behavior queue
+  (unlike a macro with `&macro_wait_time`, which would hold up every queued output behind
+  it).
+- **Again before it ends:** starts over from the new call. `&pixlblink_off` stops it early.
+- **One blink per pixel.** A counted blink replaces any blink already at that pixel, and
+  that blink does **not** come back afterwards. Put counted blinks on pixels that never
+  carry a lasting blink (caps word, idle lock, dynamic-macro slots, font capture), or the
+  lasting one is lost until its owner sets it again.
+- **Right half lag:** the right half starts when the command lands, up to ~45 ms after
+  the left with `CONFIG_ZMK_SPLIT_BLE_PREF_LATENCY=5` (`PATCH_ARCHITECTURE.md` §5.5).
+- MAGIC still wins at a shared pixel, as for any blink.
 
 ## 3. Firmware model (`app/src/rgb_underglow.c`)
 
@@ -82,6 +122,8 @@ struct pixlblink_slot {
     struct led_rgb color1;   // ON half-cycle
     struct led_rgb color2;   // OFF half-cycle (may be black)
     uint32_t half_ms;        // 5000 / freq_code
+    int64_t start_ms;        // counted blink: uptime at start; 0 = free-running
+    int64_t end_ms;          // counted blink: end of the last ON half; 0 = free-running
     bool active;
 };
 static struct pixlblink_slot pixlblink_slots[STRIP_NUM_PIXELS];
@@ -97,6 +139,15 @@ static bool any_pixlblink;
   status_overlay_active[i] = true;   // set on BOTH phases
   ```
   The mask is set on both phases because `color2` may be a real colour, not black.
+- **Counted blinks** (§2.3): `pixlblink_slot_time()` sets `start_ms` / `end_ms` when the
+  blink starts, and `pixlblink_slot_phase()` returns COLOR1, COLOR2 or ENDED per frame.
+  For `end_ms == 0` it is the formula above, unchanged; otherwise the phase runs from
+  `start_ms`. On ENDED the compositor frees the slot (that frame already shows what is
+  beneath), recomputes `any_pixlblink`, and resubmits the write work once. That last step
+  matters: the refresh timer stops itself without another write once nothing needs it,
+  and the write work is what re-checks ext power, so a strip kept on only by the blink
+  powers down. Both helpers sit between `--- pixlblink slot timing ---` markers, which
+  the host test copies verbatim (§8).
 - `pixlblink_half_ms(code)` guards a zero/missing code with
   `PIXLBLINK_DEFAULT_FREQ_CODE` (5) and a `hm == 0 ? 1` floor.
 - Colours are brightness-scaled by `CONFIG_ZMK_RGB_UNDERGLOW_BRT_MAX`, identical to
@@ -109,8 +160,13 @@ static bool any_pixlblink;
 ```c
 int zmk_rgb_underglow_set_pixlblink(uint32_t pos, uint32_t color1,
                                     uint32_t color2, uint8_t freq_code);
+int zmk_rgb_underglow_set_pixlblink_ex(uint32_t pos, uint32_t color1, uint32_t color2,
+                                       uint8_t freq_code, uint8_t blinks);   /* blink-count */
 int zmk_rgb_underglow_clear_pixlblink(uint32_t pos);
 ```
+The 4-argument setters (this one and `zmk_split_central_set_pixlblink`) keep their
+signatures, for out-of-tree callers, and mean `blinks = 0`; same convention as the layer
+functions in `PATCH_LAYER_LOCKING.md`.
 
 ### The three gates — all required
 `any_pixlblink` must appear in **all three** (see `PATCH_ARCHITECTURE.md` §4):
@@ -129,8 +185,13 @@ The peripheral runs its own 25 ms tick and **animates autonomously** — the cen
 pushes the spec once, never frames.
 
 - Ops `ZMK_SPLIT_RGB_PIXEL_OP_PIXLBLINK = 7` / `..._PIXLBLINK_CLEAR = 8`.
-- Senders `zmk_split_central_set_pixlblink(pos, color1, color2, freq_code)` and
+- Senders `zmk_split_central_set_pixlblink(pos, color1, color2, freq_code)`,
+  `zmk_split_central_set_pixlblink_ex(..., blinks)` and
   `zmk_split_central_clear_pixlblink(pos)`.
+- `blink-count` travels as `u.blink.blinks`, one byte at offset 13, in what was padding
+  after `freq_code`: the payload is still **16 bytes** (checked on ARM). `service.c`
+  checks at build time that its mirror matches the wire struct (size and field offsets)
+  and that the payload is ≤ 20 bytes.
 - Both peripheral dispatchers handle the ops: `bluetooth/service.c` (live BLE path)
   and `peripheral.c` (generic/wired — carried but untested on hardware).
 - The blink's `color2` + `freq_code` ride in the payload **union**, sharing storage
@@ -144,7 +205,8 @@ pushes the spec once, never frames.
 
 ## 5. Semantics
 
-- `&<preset> POS` — start (or replace) the blink at POS.
+- `&<preset> POS` — start (or replace) the blink at POS. With `blink-count`, it then
+  stops by itself (§2.3).
 - `&pixlblink_off POS` — stop it; other blinking pixels continue.
 - `color2` omitted / `0x000000` → classic colour↔off blink.
 - `color1 == color2` → solid colour, not an error.
@@ -166,6 +228,13 @@ pushes the spec once, never frames.
 `app/include/zmk/split/transport/types.h`, `app/include/zmk/split/central.h`,
 `app/src/split/central.c`, `app/src/split/bluetooth/service.c`,
 `app/src/split/peripheral.c`, `app/CMakeLists.txt`, `app/dts/behaviors.dtsi`.
+
+**`blink-count` patch.** Modified (9): `app/src/rgb_underglow.c`,
+`app/include/zmk/rgb_underglow.h`, `app/src/behaviors/behavior_pixlblink.c`,
+`app/dts/bindings/behaviors/zmk,behavior-pixlblink.yaml`,
+`app/include/zmk/split/transport/types.h`, `app/include/zmk/split/central.h`,
+`app/src/split/central.c`, `app/src/split/bluetooth/service.c`, `app/src/split/peripheral.c`.
+New: `app/tests-host/pixlblink-count/` (`run.sh`, `harness.c`).
 
 ## 7. Keymap usage
 
@@ -196,6 +265,9 @@ Listener in `layer_listeners { }` — every position started must be cleared:
 Or on keys: `&blink_a PIXEL_LH_C6R4` to start, `&pixlblink_off PIXEL_LH_C6R4` to
 stop (there is no "release stops it").
 
+A counted preset needs no stop at all: drop it into any bindings list (a macro, an
+adaptive-sequence entry, a listener's `enter`) and it cleans up after itself (§2.3).
+
 **Reminders:** `PX_*` or raw `0xRRGGBB` only; `POS_*` are not strip indices;
 frequency lives on the preset, not the invocation; presets are cheap — define one
 per colour/rate combination.
@@ -210,6 +282,28 @@ per colour/rate combination.
 4. With `color2` set, the OFF half is that colour, not forced black.
 5. **Underglow OFF** → must still blink (gates 2 and 3).
 6. Leaving the layer stops both and reveals what's beneath.
+7. **`blink-count`:** bind `&blink_once PIXEL_LH_x` (count 1, frequency 40) and
+   `&blink_twice PIXEL_RH_y` (count 2) to keys. One tap: one 125 ms flash on the left,
+   two on the right, then each pixel shows what it showed before. With underglow off,
+   the strip goes dark afterwards. Tap again mid-flash: it starts over.
+
+### 8.1 Off-hardware checks (`blink-count`)
+
+- `sh app/tests-host/pixlblink-count/run.sh`: the real slot timing code, copied
+  verbatim, driven like the 25 ms refresh. Checks: `blink-count = 0` matches the old
+  formula exactly and never ends; exact edges for 1 and 2 blinks; a counted blink opens
+  on `color1` even where the free-running clock is in its OFF half; re-trigger restarts;
+  for 6 frequencies × 1..12 blinks × 9 start offsets, the number of separate ON
+  stretches equals the count and the last frame is ON; 255 blinks at the slowest rate
+  doesn't overflow; the wire struct is 16 bytes with `blinks` at offset 13.
+  Mutation-checked: ending after an OFF half, or timing a counted blink from the free
+  clock, each make it fail.
+- `app/tests-host/split-pixel-grouping/run.sh`: still passes (blinks are never merged).
+- `go60_lh` / `go60_rh` builds with counted presets bound: clean, no new warnings.
+  Swapping two fields in the peripheral mirror fails the right-half build at the new
+  check.
+- The native_posix suite doesn't compile any of these files (checked: 0 of 274 test
+  builds), so it can't cover this. **Not done:** hardware.
 
 ## 9. Failure triage
 
@@ -223,6 +317,9 @@ per colour/rate combination.
 | wrong RH pixel blinks | `PIXEL_RH_*` value in `go60-pixels.h` |
 
 ## 10. Open items
+- [ ] `blink-count`: flash and run §8 step 7.
+- [ ] Restore a lasting blink after a counted one on the same pixel? Not done; pick
+      separate pixels instead (§2.3).
 - [ ] PIXLBLINK vs MAGIC priority at a shared LED (currently MAGIC wins) — confirm.
 - [ ] Should `PIXEL_CLEAR_*` also stop blinks?
 - [ ] L/R phase sync — currently accepted drift.

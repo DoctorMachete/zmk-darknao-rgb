@@ -10,7 +10,7 @@ via the DoctorMachete mirror). **Start here.**
 | **`PATCH_ARCHITECTURE.md`** | Shared foundations: the RGB composite stack, split transport, addressing, build/deploy, and the **hard constraints**. Read before touching any feature. |
 | **`PATCH_PIXEL.md`** | `&pixel` — static per-pixel RGB override on either half. The foundation the other RGB features build on. |
 | **`PATCH_MAGIC_INDICATOR.md`** | `&magic_indicator_*` — relocatable, live-updating BLE/USB status indicators. |
-| **`PATCH_PIXLBLINK.md`** | `&pixlblink` presets + `&pixlblink_off` — sharp two-colour blink at a per-preset frequency. |
+| **`PATCH_PIXLBLINK.md`** | `&pixlblink` presets + `&pixlblink_off` — sharp two-colour blink at a per-preset frequency; `blink-count` for blinks that stop by themselves. |
 | **`PATCH_CAPS_WORD_OUTPUTS.md`** | `enter` / `exit` behavior chains on `zmk,behavior-caps-word` — drives an indicator (PIXLBLINK today) from caps-word activation. |
 | **`PATCH_CAPS_WORD_IDLE_TIMEOUT.md`** | `idle-timeout-ms` on `zmk,behavior-caps-word` — caps word turns itself off after a pause in typing and fires `exit`. |
 | **`PATCH_LAYER_LOCKING.md`** | Upstream ZMK layer locking, ported: stock `&tog` / `&to` lock, `&mo` doesn't, custom instances opt in with `locking;`. Lock changes raise `zmk_layer_lock_changed`. |
@@ -25,6 +25,7 @@ via the DoctorMachete mirror). **Start here.**
 | `&pixel` | **Working**, both halves |
 | MAGIC indicators | **Working**, LH (see LH-only caveat in its doc) |
 | PIXLBLINK presets + off | **Working**, both halves |
+| PIXLBLINK `blink-count` (blink N times, then stop) | **Implemented and tested off-hardware**, not yet flashed |
 | `caps_word` `enter` / `exit` outputs | **Working on hardware** (blink on both halves, drawn over `&pixel`) |
 | `caps_word` `idle-timeout-ms` | **Implemented and tested off-hardware**, not yet flashed |
 | hold-tap prior-idle ≤ 0 fix | **Working on hardware** (GitHub build; the MoErgo build never had the bug) |

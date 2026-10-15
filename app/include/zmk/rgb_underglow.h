@@ -66,6 +66,15 @@ int zmk_rgb_underglow_set_magic_pixel(uint32_t position, int32_t color);
 #endif
 int zmk_rgb_underglow_set_pixlblink(uint32_t position, uint32_t color1, uint32_t color2,
                                     uint8_t freq_code);
+/*
+ * Fork: blink-count (PATCH_PIXLBLINK.md §2.3). Same as zmk_rgb_underglow_set_pixlblink(),
+ * plus `blinks`: 0 = blink until cleared (what the 4-argument form does); N > 0 = N color1
+ * halves with color2 halves between them, timed from this call, then the blink ends by
+ * itself, revealing whatever is beneath. The 4-argument form keeps its signature for
+ * out-of-tree callers.
+ */
+int zmk_rgb_underglow_set_pixlblink_ex(uint32_t position, uint32_t color1, uint32_t color2,
+                                       uint8_t freq_code, uint8_t blinks);
 int zmk_rgb_underglow_clear_pixlblink(uint32_t position);
 
 /*

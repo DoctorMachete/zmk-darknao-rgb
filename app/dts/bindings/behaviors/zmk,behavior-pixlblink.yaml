@@ -29,3 +29,13 @@ properties:
     required: false
     default: 5
     description: Blink frequency code; freq_hz = frequency / 10 (5 = 0.5 Hz).
+  blink-count:
+    type: int
+    required: false
+    default: 0
+    description: |
+      Blink this many times, then stop by itself (1..255). A counted blink is timed from
+      the moment it starts, so it always opens on color1; it shows color2 between blinks
+      and ends after its last color1 half (2 * blink-count - 1 half-periods), revealing
+      whatever is beneath, as &pixlblink_off would. 0 (the default) blinks until
+      &pixlblink_off. Fork patch, see PATCH_PIXLBLINK.md.

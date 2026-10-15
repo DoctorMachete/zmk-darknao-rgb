@@ -63,4 +63,7 @@ int zmk_split_central_set_usb_indicator(uint8_t position);
 int zmk_split_central_clear_usb_indicator(void);
 int zmk_split_central_set_pixlblink(uint8_t position, uint32_t color1, uint32_t color2,
                                     uint8_t freq_code);
+/* Fork: blink-count. `blinks` = 0 blinks until cleared; see zmk_rgb_underglow_set_pixlblink_ex. */
+int zmk_split_central_set_pixlblink_ex(uint8_t position, uint32_t color1, uint32_t color2,
+                                       uint8_t freq_code, uint8_t blinks);
 int zmk_split_central_clear_pixlblink(uint8_t position);
