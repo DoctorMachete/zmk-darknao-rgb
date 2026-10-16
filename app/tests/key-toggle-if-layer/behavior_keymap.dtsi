@@ -1,0 +1,51 @@
+#include <dt-bindings/zmk/keys.h>
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/kscan_mock.h>
+
+/*
+ * Fork: &kt_iflayer KEY LAYER (PATCH_KEY_TOGGLE_IF_LAYER.md).
+ *
+ *          base                       layer 1
+ * (0,0)    &kt_iflayer B 1            &trans  (falls through to the base binding)
+ * (0,1)    &mo 1                      &trans
+ * (1,0)    &kt_iflayer C 0            &kt_iflayer_on E 1
+ * (1,1)    &tog 1                     &tog 1
+ * (2,0)    &kt_iflayer D 9 (no such)  &kt_iflayer_off E 1
+ * (2,1)    &kt B                      &trans
+ */
+&kscan {
+    rows = <3>;
+};
+
+/ {
+    behaviors {
+        kt_iflayer_on: kt_iflayer_on {
+            compatible = "zmk,behavior-key-toggle-if-layer";
+            #binding-cells = <2>;
+            toggle-mode = "on";
+        };
+        kt_iflayer_off: kt_iflayer_off {
+            compatible = "zmk,behavior-key-toggle-if-layer";
+            #binding-cells = <2>;
+            toggle-mode = "off";
+        };
+    };
+
+    keymap {
+        compatible = "zmk,keymap";
+
+        default_layer {
+            bindings = <
+                &kt_iflayer B 1  &mo 1
+                &kt_iflayer C 0  &tog 1
+                &kt_iflayer D 9  &kt B>;
+        };
+
+        layer_1 {
+            bindings = <
+                &trans                &trans
+                &kt_iflayer_on E 1    &tog 1
+                &kt_iflayer_off E 1   &trans>;
+        };
+    };
+};

@@ -1,0 +1,18 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* hold &mo 1, tap: B on */
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+        /* release &mo: layer 1 off, B stays held */
+        ZMK_MOCK_RELEASE(0,1,10)
+        /* &kt_iflayer B 1 can't release it now: nothing */
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+        /* a plain &kt B can: B off */
+        ZMK_MOCK_PRESS(2,1,10)
+        ZMK_MOCK_RELEASE(2,1,10)
+    >;
+};

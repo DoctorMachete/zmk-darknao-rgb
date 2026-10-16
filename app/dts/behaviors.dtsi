@@ -6,6 +6,7 @@
 
 #include <behaviors/key_press.dtsi>
 #include <behaviors/key_toggle.dtsi>
+#include <behaviors/key_toggle_if_layer.dtsi> /* fork: PATCH_KEY_TOGGLE_IF_LAYER.md */
 #include <behaviors/transparent.dtsi>
 #include <behaviors/none.dtsi>
 #include <behaviors/mod_tap.dtsi>

@@ -1,0 +1,22 @@
+/*
+ * Copyright (c) 2026 The ZMK Contributors
+ *
+ * SPDX-License-Identifier: MIT
+ *
+ * Fork: &kt_iflayer KEY LAYER (PATCH_KEY_TOGGLE_IF_LAYER.md).
+ */
+
+#include <dt-bindings/zmk/behaviors.h>
+
+/ {
+    behaviors {
+#if ZMK_BEHAVIOR_OMIT(KT_IFLAYER)
+    /omit-if-no-ref/
+#endif
+        kt_iflayer: key_toggle_if_layer {
+            compatible = "zmk,behavior-key-toggle-if-layer";
+            #binding-cells = <2>;
+            display-name = "Key Toggle If Layer";
+        };
+    };
+};

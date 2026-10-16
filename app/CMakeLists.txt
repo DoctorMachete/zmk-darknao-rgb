@@ -53,6 +53,8 @@ if ((NOT CONFIG_ZMK_SPLIT) OR CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
   target_sources(app PRIVATE src/hid.c)
   target_sources(app PRIVATE src/behaviors/behavior_key_press.c)
   target_sources_ifdef(CONFIG_ZMK_BEHAVIOR_KEY_TOGGLE app PRIVATE src/behaviors/behavior_key_toggle.c)
+  # Fork: &kt_iflayer (PATCH_KEY_TOGGLE_IF_LAYER.md). No event subscriptions, so its place is free.
+  target_sources_ifdef(CONFIG_ZMK_BEHAVIOR_KEY_TOGGLE_IF_LAYER app PRIVATE src/behaviors/behavior_key_toggle_if_layer.c)
   target_sources_ifdef(CONFIG_ZMK_BEHAVIOR_HOLD_TAP app PRIVATE src/behaviors/behavior_hold_tap.c)
   target_sources_ifdef(CONFIG_ZMK_BEHAVIOR_STICKY_KEY app PRIVATE src/behaviors/behavior_sticky_key.c)
   target_sources(app PRIVATE src/behaviors/behavior_caps_word.c)

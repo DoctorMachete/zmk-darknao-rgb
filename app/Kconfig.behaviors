@@ -66,6 +66,12 @@ config ZMK_BEHAVIOR_KEY_TOGGLE
     default y
     depends on DT_HAS_ZMK_BEHAVIOR_KEY_TOGGLE_ENABLED
 
+# Fork: &kt_iflayer KEY LAYER (PATCH_KEY_TOGGLE_IF_LAYER.md)
+config ZMK_BEHAVIOR_KEY_TOGGLE_IF_LAYER
+    bool
+    default y
+    depends on DT_HAS_ZMK_BEHAVIOR_KEY_TOGGLE_IF_LAYER_ENABLED
+
 config ZMK_BEHAVIOR_MOUSE_KEY_PRESS
     bool
     default y

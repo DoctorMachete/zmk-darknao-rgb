@@ -1,0 +1,17 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* &tog 1 on */
+        ZMK_MOCK_PRESS(1,1,10)
+        ZMK_MOCK_RELEASE(1,1,10)
+        /* toggle-mode "on": E on, and on again (re-pressed, as &kt toggle-mode "on" does) */
+        ZMK_MOCK_PRESS(1,0,10)
+        ZMK_MOCK_RELEASE(1,0,10)
+        ZMK_MOCK_PRESS(1,0,10)
+        ZMK_MOCK_RELEASE(1,0,10)
+        /* toggle-mode "off": E off */
+        ZMK_MOCK_PRESS(2,0,10)
+        ZMK_MOCK_RELEASE(2,0,10)
+    >;
+};

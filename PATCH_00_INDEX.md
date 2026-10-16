@@ -15,6 +15,7 @@ via the DoctorMachete mirror). **Start here.**
 | **`PATCH_CAPS_WORD_IDLE_TIMEOUT.md`** | `idle-timeout-ms` on `zmk,behavior-caps-word` — caps word turns itself off after a pause in typing and fires `exit`. |
 | **`PATCH_LAYER_LOCKING.md`** | Upstream ZMK layer locking, ported: stock `&tog` / `&to` lock, `&mo` doesn't, custom instances opt in with `locking;`. Lock changes raise `zmk_layer_lock_changed`. |
 | **`PATCH_LAYER_IDLE_LOCK.md`** | `zmk,layer-idle-lock` — a layer held by `&mo` locks itself on after an idle hold, with `enter` / `exit` feedback chains; `triggers-on-any-lock` extends the feedback to `&tog` / `&to` locks. |
+| **`PATCH_KEY_TOGGLE_IF_LAYER.md`** | `&kt_iflayer KEY LAYER` — `&kt` that only toggles while a given layer is active. |
 | **`PATCH_BUGFIX_HOLD_TAP_PRIOR_IDLE.md`** | Bug fix: hold-tap `require-prior-idle-ms` ≤ 0 ("disabled") could still force an instant tap after a macro-emitting hold-tap. |
 | `PATCH_PIXEL_REFERENCE_go60-pixels.h` | Reference copy of the pixel-address header. **Nothing includes it** — the live header is `app/include/dt-bindings/zmk/go60-pixels.h`. |
 
@@ -30,6 +31,7 @@ via the DoctorMachete mirror). **Start here.**
 | `caps_word` `idle-timeout-ms` | **Implemented and tested off-hardware**, not yet flashed |
 | hold-tap prior-idle ≤ 0 fix | **Working on hardware** (GitHub build; the MoErgo build never had the bug) |
 | layer locking (upstream semantics) | **Working on hardware** (first test, GitHub build); MoErgo build compiles |
+| `&kt_iflayer` (key toggle if layer active) | **Implemented and tested off-hardware**, not yet flashed |
 | layer idle-lock (`zmk,layer-idle-lock`) | **Working on hardware**, LNPAD + RNPAD, both halves, with `triggers-on-any-lock` |
 | send-time pixel grouping (`PATCH_ARCHITECTURE.md` §5.4) | **On hardware**; fewer right-half writes. Smooth unlocks also need the latency setting in §5.5 |
 | Battery / USB secondary indicators | **Present but disabled** — see `PATCH_PIXEL.md` |

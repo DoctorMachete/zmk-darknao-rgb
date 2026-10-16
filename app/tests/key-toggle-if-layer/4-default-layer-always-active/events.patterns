@@ -1,0 +1,4 @@
+s/.*hid_listener_keycode_//p
+s/.*kt_iflayer_binding_pressed: /kt_iflayer: /p
+s/.*zmk: \(position [0-9]*: layer [0-9]* is not a layer of this keymap.*\)/kt_iflayer: \1/p
+s/.*set_layer_state: //p

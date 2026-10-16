@@ -1,0 +1,11 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* &kt_iflayer C 0: layer 0 is the default layer, always active: C on, C off */
+        ZMK_MOCK_PRESS(1,0,10)
+        ZMK_MOCK_RELEASE(1,0,10)
+        ZMK_MOCK_PRESS(1,0,10)
+        ZMK_MOCK_RELEASE(1,0,10)
+    >;
+};

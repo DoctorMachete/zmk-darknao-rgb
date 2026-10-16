@@ -1,0 +1,9 @@
+layer_changed: layer 1 state 1
+layer_lock_changed: layer 1 locked 1
+kt_iflayer: position 2 keycode 0x70008: layer 1 on, toggling
+pressed: usage_page 0x07 keycode 0x08 implicit_mods 0x00 explicit_mods 0x00
+kt_iflayer: position 2 keycode 0x70008: layer 1 on, toggling
+pressed: unregistering usage_page 0x07 keycode 0x08 since it was already pressed
+pressed: usage_page 0x07 keycode 0x08 implicit_mods 0x00 explicit_mods 0x00
+kt_iflayer: position 4 keycode 0x70008: layer 1 on, toggling
+released: usage_page 0x07 keycode 0x08 implicit_mods 0x00 explicit_mods 0x00

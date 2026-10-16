@@ -1,0 +1,23 @@
+# Copyright (c) 2026 The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: |
+  Key toggle that only acts while a given layer is active. Two parameters: the key
+  (param1) and the layer (param2). On press, if the layer is active, the key is toggled
+  exactly as &kt would (see toggle-mode); if it is not active, nothing happens. The
+  layer is checked at press time; the default layer always counts as active. Release
+  does nothing. Fork patch, see PATCH_KEY_TOGGLE_IF_LAYER.md.
+
+compatible: "zmk,behavior-key-toggle-if-layer"
+
+include: two_param.yaml
+
+properties:
+  toggle-mode:
+    type: string
+    required: false
+    default: "flip"
+    enum:
+      - "on"
+      - "off"
+      - "flip"

@@ -1,0 +1,6 @@
+layer_changed: layer 1 state 1
+kt_iflayer: position 0 keycode 0x70005: layer 1 on, toggling
+pressed: usage_page 0x07 keycode 0x05 implicit_mods 0x00 explicit_mods 0x00
+layer_changed: layer 1 state 0
+kt_iflayer: position 0 keycode 0x70005: layer 1 off, not toggled
+released: usage_page 0x07 keycode 0x05 implicit_mods 0x00 explicit_mods 0x00
