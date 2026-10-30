@@ -1,0 +1,16 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* on; press 0 (D down), switch off (F14), release 0: D up, nothing stuck */
+        ZMK_MOCK_PRESS(2,0,10)
+        ZMK_MOCK_RELEASE(2,0,10)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_PRESS(2,0,10)
+        ZMK_MOCK_RELEASE(2,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+        /* off: A */
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+    >;
+};

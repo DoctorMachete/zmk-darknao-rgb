@@ -1,0 +1,12 @@
+mirror: instance 0 on, mode 0
+pressed: usage_page 0x07 keycode 0x68 implicit_mods 0x00 explicit_mods 0x00
+released: usage_page 0x07 keycode 0x68 implicit_mods 0x00 explicit_mods 0x00
+pressed: usage_page 0x07 keycode 0x3A implicit_mods 0x00 explicit_mods 0x00
+released: usage_page 0x07 keycode 0x3A implicit_mods 0x00 explicit_mods 0x00
+mirror: position 0 acts as 3
+pressed: usage_page 0x07 keycode 0x07 implicit_mods 0x00 explicit_mods 0x00
+mirror: position 0 release acts as 3
+released: usage_page 0x07 keycode 0x07 implicit_mods 0x00 explicit_mods 0x00
+mirror: instance 0 off
+pressed: usage_page 0x07 keycode 0x69 implicit_mods 0x00 explicit_mods 0x00
+released: usage_page 0x07 keycode 0x69 implicit_mods 0x00 explicit_mods 0x00

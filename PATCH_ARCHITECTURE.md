@@ -348,6 +348,13 @@ check a build: `arm-zephyr-eabi-nm -n zmk.elf | grep zmk_event_sub_.*position_st
 only timestamps key activity for its idle timeout and always bubbles, so its place is not
 load-bearing (`PATCH_CAPS_WORD_IDLE_TIMEOUT.md` §2.4).
 
+`mirror_mode` **rewrites** key positions, so its place *is* load-bearing: by default it sits
+right after `layer_idle_lock.c`, ahead of hold-tap and combo, so those see mirrored keys;
+with `CONFIG_ZMK_MIRROR_MODE_COMBOS=n` it moves after `combo.c`. Combo re-raises events from
+the start of the chain, so `combo.c` tells the mirror to let those through
+(`PATCH_MIRROR_MODE.md` §3). **A new listener that must see physical keys goes above it; one
+that must see mirrored keys goes below it.**
+
 ### 7.2 Layer locks
 
 Since `PATCH_LAYER_LOCKING.md` (upstream ZMK semantics): stock `&tog` and `&to` **lock**

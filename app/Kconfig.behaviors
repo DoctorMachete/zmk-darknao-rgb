@@ -66,6 +66,32 @@ config ZMK_BEHAVIOR_KEY_TOGGLE
     default y
     depends on DT_HAS_ZMK_BEHAVIOR_KEY_TOGGLE_ENABLED
 
+# Fork: mirror mode, zmk,behavior-mirror (PATCH_MIRROR_MODE.md)
+config ZMK_BEHAVIOR_MIRROR
+    bool
+    default y
+    depends on DT_HAS_ZMK_BEHAVIOR_MIRROR_ENABLED
+    depends on !ZMK_SPLIT || ZMK_SPLIT_ROLE_CENTRAL
+
+if ZMK_BEHAVIOR_MIRROR
+
+config ZMK_MIRROR_MODE_COMBOS
+    bool "Mirror mode also mirrors combos"
+    default y
+    help
+      Places the mirror listener ahead of hold-tap and combo (app/CMakeLists.txt), so
+      combos and hold-tap decisions see the mirrored keys. With n it runs after combo:
+      combos keep their physical keys.
+
+config ZMK_MIRROR_NOTIFIER
+    bool "Send the mirror state to the host over Raw HID (0xF4 packet)"
+    default y
+    depends on RAW_HID
+    help
+      Needs the zmk-raw-hid module. See PATCH_MIRROR_MODE.md and MIRROR_PACKET_0xF4.md.
+
+endif
+
 # Fork: &kt_iflayer KEY LAYER (PATCH_KEY_TOGGLE_IF_LAYER.md)
 config ZMK_BEHAVIOR_KEY_TOGGLE_IF_LAYER
     bool

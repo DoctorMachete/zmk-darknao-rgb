@@ -1,0 +1,15 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* ONESHOT: F13; excluded 4 (E) doesn't use it; 0 -> D uses it, off on release (F14); then A */
+        ZMK_MOCK_PRESS(3,1,10)
+        ZMK_MOCK_RELEASE(3,1,10)
+        ZMK_MOCK_PRESS(1,0,10)
+        ZMK_MOCK_RELEASE(1,0,10)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+    >;
+};

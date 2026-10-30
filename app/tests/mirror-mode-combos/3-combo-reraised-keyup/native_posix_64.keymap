@@ -1,0 +1,14 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* on; physical 2 (as 1) and 1 (as 2) captured, then physical 2 released: combo releases
+           both presses and re-raises the key-up. Expect B down, C down, B up, C up */
+        ZMK_MOCK_PRESS(2,0,10)
+        ZMK_MOCK_RELEASE(2,0,10)
+        ZMK_MOCK_PRESS(0,2,10)
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_RELEASE(0,2,10)
+        ZMK_MOCK_RELEASE(0,1,10)
+    >;
+};

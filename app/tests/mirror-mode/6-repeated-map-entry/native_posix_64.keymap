@@ -1,0 +1,24 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* mirror_b on (F15): 0 and 1 both act as 3 */
+        ZMK_MOCK_PRESS(2,3,10)
+        ZMK_MOCK_RELEASE(2,3,10)
+        /* hold 0 (D), press/release 1: swallowed; release 0: D up */
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_RELEASE(0,1,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+        /* other order: hold 0 (D), press 1 (swallowed), release 0 (D up), release 1 (swallowed) */
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+        ZMK_MOCK_RELEASE(0,1,10)
+        /* 1 alone: D */
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_RELEASE(0,1,10)
+        ZMK_MOCK_PRESS(2,3,10)
+        ZMK_MOCK_RELEASE(2,3,10)
+    >;
+};

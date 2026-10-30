@@ -1,0 +1,3 @@
+s/.*hid_listener_keycode_//p
+s/.*zmk: mirror_[a-z_]*: /mirror: /p
+s/.*combo: reraising position event/combo: reraise/p

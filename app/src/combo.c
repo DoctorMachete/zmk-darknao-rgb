@@ -17,6 +17,7 @@
 #include <zmk/behavior.h>
 #include <zmk/event_manager.h>
 #include <zmk/events/position_state_changed.h>
+#include <zmk/mirror_mode.h>
 #include <zmk/events/keycode_state_changed.h>
 #include <zmk/hid.h>
 #include <zmk/matrix.h>
@@ -271,6 +272,9 @@ static int release_pressed_keys() {
         } else {
             // reprocess events (see tests/combo/fully-overlapping-combos-3 for why this is needed)
             LOG_DBG("combo: reraising position event %d", ev->data.position);
+            // Fork: mirror mode (PATCH_MIRROR_MODE.md) already rewrote this event on its first
+            // pass; tell it not to mirror the re-raise again. No-op without mirror mode.
+            zmk_mirror_mode_pass_next(&ev->data);
             ZMK_EVENT_RAISE(*ev);
         }
     }
@@ -466,6 +470,7 @@ static int position_state_up(const zmk_event_t *ev, struct zmk_position_state_ch
         // correct order for e.g. hold-taps, reraise the key up event too.
         struct zmk_position_state_changed_event dupe_ev =
             copy_raised_zmk_position_state_changed(data);
+        zmk_mirror_mode_pass_next(&dupe_ev.data); // fork: see release_pressed_keys()
         ZMK_EVENT_RAISE(dupe_ev);
         return ZMK_EV_EVENT_CAPTURED;
     }

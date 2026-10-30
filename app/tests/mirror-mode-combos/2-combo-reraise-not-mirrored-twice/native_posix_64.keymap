@@ -1,0 +1,16 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* on; physical 2 (as 1) and 1 (as 2) are captured as a start of {1,2,3}; physical 4 (as 7)
+           breaks it: combo releases 1, re-raises 2. Expect B, C, then the mod-tap at 7 */
+        ZMK_MOCK_PRESS(2,0,10)
+        ZMK_MOCK_RELEASE(2,0,10)
+        ZMK_MOCK_PRESS(0,2,10)
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_PRESS(1,0,300)
+        ZMK_MOCK_RELEASE(1,0,10)
+        ZMK_MOCK_RELEASE(0,1,10)
+        ZMK_MOCK_RELEASE(0,2,10)
+    >;
+};

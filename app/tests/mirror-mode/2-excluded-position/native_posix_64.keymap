@@ -1,0 +1,15 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* on; pos 4 is excluded on layer 0: E; pos 5 -> 6: G */
+        ZMK_MOCK_PRESS(2,0,10)
+        ZMK_MOCK_RELEASE(2,0,10)
+        ZMK_MOCK_PRESS(1,0,10)
+        ZMK_MOCK_RELEASE(1,0,10)
+        ZMK_MOCK_PRESS(1,1,10)
+        ZMK_MOCK_RELEASE(1,1,10)
+        ZMK_MOCK_PRESS(2,0,10)
+        ZMK_MOCK_RELEASE(2,0,10)
+    >;
+};

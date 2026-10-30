@@ -1,0 +1,17 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* ONESHOT, then ON makes it permanent: the mirrored key no longer ends it */
+        ZMK_MOCK_PRESS(3,1,10)
+        ZMK_MOCK_RELEASE(3,1,10)
+        ZMK_MOCK_PRESS(3,2,10)
+        ZMK_MOCK_RELEASE(3,2,10)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+        ZMK_MOCK_PRESS(3,3,10)
+        ZMK_MOCK_RELEASE(3,3,10)
+    >;
+};

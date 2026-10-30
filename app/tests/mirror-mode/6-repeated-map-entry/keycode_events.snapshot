@@ -1,0 +1,22 @@
+mirror: instance 1 on, mode 0
+pressed: usage_page 0x07 keycode 0x6A implicit_mods 0x00 explicit_mods 0x00
+released: usage_page 0x07 keycode 0x6A implicit_mods 0x00 explicit_mods 0x00
+mirror: position 0 acts as 3
+pressed: usage_page 0x07 keycode 0x07 implicit_mods 0x00 explicit_mods 0x00
+mirror: position 1 (as 3) swallowed: 3 already held
+mirror: position 1 release swallowed
+mirror: position 0 release acts as 3
+released: usage_page 0x07 keycode 0x07 implicit_mods 0x00 explicit_mods 0x00
+mirror: position 0 acts as 3
+pressed: usage_page 0x07 keycode 0x07 implicit_mods 0x00 explicit_mods 0x00
+mirror: position 1 (as 3) swallowed: 3 already held
+mirror: position 0 release acts as 3
+released: usage_page 0x07 keycode 0x07 implicit_mods 0x00 explicit_mods 0x00
+mirror: position 1 release swallowed
+mirror: position 1 acts as 3
+pressed: usage_page 0x07 keycode 0x07 implicit_mods 0x00 explicit_mods 0x00
+mirror: position 1 release acts as 3
+released: usage_page 0x07 keycode 0x07 implicit_mods 0x00 explicit_mods 0x00
+mirror: instance 1 off
+pressed: usage_page 0x07 keycode 0x6B implicit_mods 0x00 explicit_mods 0x00
+released: usage_page 0x07 keycode 0x6B implicit_mods 0x00 explicit_mods 0x00

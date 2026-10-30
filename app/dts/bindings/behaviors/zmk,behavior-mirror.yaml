@@ -1,0 +1,62 @@
+# Copyright (c) 2026 The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: |
+  Mirror mode (fork patch, PATCH_MIRROR_MODE.md). While an instance is on, a key press on
+  one of its layers acts as its mirror key, without any extra layer. The decision is made
+  per key press from the highest active layer: if that layer is in one of the instance's
+  child groups and the key isn't in that group's excluded-positions, the press is
+  rewritten to mirror-positions[key]. Only one instance is on at a time; turning another on
+  switches. The parameter is MIRROR_TOG / _ON / _OFF / _MO / _ONESHOT
+  (dt-bindings/zmk/mirror.h).
+
+compatible: "zmk,behavior-mirror"
+
+include: one_param.yaml
+
+properties:
+  mirror-positions:
+    type: array
+    description: |
+      One entry per key position (ZMK_KEYMAP_LEN entries): entry p is the key that
+      pressing key p acts as. A key pointing at itself is not mirrored. Optional on GO60
+      (default MIRROR_MAP_GO60); required on any other board.
+  overlay-id:
+    type: int
+    default: 0
+    description: |
+      Id sent to the host overlay in the 0xF4 Raw HID packet while this instance is on
+      (1..255). 0 = not reported: the host sees "no mirror". Fixed per instance, so
+      reordering nodes never changes it.
+  enter:
+    type: phandle-array
+    specifier-space: binding
+    description: Behaviors fired, in order, when this instance turns on.
+  exit:
+    type: phandle-array
+    specifier-space: binding
+    description: Behaviors fired, in order, when this instance turns off (also when switched away).
+  not-press-release-outputs:
+    type: boolean
+    description: |
+      Fire enter/exit as immediate side-effect outputs (press handler only, no queue, no
+      release). Set it for &pixel / &pixlblink. Same meaning as in zmk-listeners.
+  tap-ms:
+    type: int
+    default: 5
+    description: Press-to-release time for enter/exit bindings on the queued path.
+  wait-ms:
+    type: int
+    default: 5
+    description: Time before the next enter/exit binding on the queued path.
+
+child-binding:
+  description: A group of layers that share the same excluded keys.
+  properties:
+    layers:
+      type: array
+      required: true
+      description: Layers on which this instance mirrors (decided by the highest active layer).
+    excluded-positions:
+      type: array
+      description: Keys never mirrored while one of this group's layers is on top.

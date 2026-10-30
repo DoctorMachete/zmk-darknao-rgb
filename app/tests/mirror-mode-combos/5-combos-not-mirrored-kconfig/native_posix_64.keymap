@@ -1,0 +1,18 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* CONFIG_ZMK_MIRROR_MODE_COMBOS=n: combos keep physical keys.
+           on; physical 0+1: no combo, mirrored one by one: D, C. Physical 2+3: combo X */
+        ZMK_MOCK_PRESS(2,0,10)
+        ZMK_MOCK_RELEASE(2,0,10)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_PRESS(0,1,100)
+        ZMK_MOCK_RELEASE(0,0,10)
+        ZMK_MOCK_RELEASE(0,1,10)
+        ZMK_MOCK_PRESS(0,2,10)
+        ZMK_MOCK_PRESS(0,3,100)
+        ZMK_MOCK_RELEASE(0,2,10)
+        ZMK_MOCK_RELEASE(0,3,10)
+    >;
+};

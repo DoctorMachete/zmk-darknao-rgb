@@ -50,6 +50,13 @@ if ((NOT CONFIG_ZMK_SPLIT) OR CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
   # subscriptions run in link order, and it must see key events before hold-tap/combo
   # capture them.
   target_sources_ifdef(CONFIG_ZMK_LAYER_IDLE_LOCK app PRIVATE src/layer_idle_lock.c)
+  # Fork: mirror mode (PATCH_MIRROR_MODE.md). Its listener rewrites key positions, so where it
+  # sits decides who sees mirrored keys. With combos mirrored: here, after the idle lock (which
+  # wants physical keys) and ahead of hold-tap and combo. Otherwise after combo.c, below.
+  if (CONFIG_ZMK_MIRROR_MODE_COMBOS)
+    target_sources_ifdef(CONFIG_ZMK_BEHAVIOR_MIRROR app PRIVATE src/mirror_mode.c)
+  endif()
+  target_sources_ifdef(CONFIG_ZMK_MIRROR_NOTIFIER app PRIVATE src/mirror_notifier.c)
   target_sources(app PRIVATE src/hid.c)
   target_sources(app PRIVATE src/behaviors/behavior_key_press.c)
   target_sources_ifdef(CONFIG_ZMK_BEHAVIOR_KEY_TOGGLE app PRIVATE src/behaviors/behavior_key_toggle.c)
@@ -73,6 +80,9 @@ if ((NOT CONFIG_ZMK_SPLIT) OR CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
   target_sources_ifdef(CONFIG_ZMK_BEHAVIOR_STUDIO_UNLOCK app PRIVATE src/behaviors/behavior_studio_unlock.c)
   target_sources_ifdef(CONFIG_ZMK_BEHAVIOR_INPUT_TWO_AXIS app PRIVATE src/behaviors/behavior_input_two_axis.c)
   target_sources(app PRIVATE src/combo.c)
+  if (NOT CONFIG_ZMK_MIRROR_MODE_COMBOS)
+    target_sources_ifdef(CONFIG_ZMK_BEHAVIOR_MIRROR app PRIVATE src/mirror_mode.c)
+  endif()
   target_sources_ifdef(CONFIG_ZMK_BEHAVIOR_TAP_DANCE app PRIVATE src/behaviors/behavior_tap_dance.c)
   target_sources(app PRIVATE src/behavior_queue.c)
   target_sources(app PRIVATE src/conditional_layer.c)
@@ -122,6 +132,7 @@ target_sources_ifdef(CONFIG_ZMK_BLE app PRIVATE src/events/ble_active_profile_ch
 
 target_sources(app PRIVATE src/events/layer_state_changed.c)
 target_sources(app PRIVATE src/events/layer_lock_changed.c)
+target_sources_ifdef(CONFIG_ZMK_BEHAVIOR_MIRROR app PRIVATE src/events/mirror_mode_changed.c)
 target_sources(app PRIVATE src/events/modifiers_state_changed.c)
 target_sources(app PRIVATE src/events/endpoint_changed.c)
 

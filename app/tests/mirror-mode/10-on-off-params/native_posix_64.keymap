@@ -1,0 +1,17 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* ON: F13; ON again: nothing; OFF: F14; OFF again: nothing; TOG on then OFF */
+        ZMK_MOCK_PRESS(3,2,10)
+        ZMK_MOCK_RELEASE(3,2,10)
+        ZMK_MOCK_PRESS(3,2,10)
+        ZMK_MOCK_RELEASE(3,2,10)
+        ZMK_MOCK_PRESS(3,3,10)
+        ZMK_MOCK_RELEASE(3,3,10)
+        ZMK_MOCK_PRESS(3,3,10)
+        ZMK_MOCK_RELEASE(3,3,10)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+    >;
+};
