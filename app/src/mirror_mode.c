@@ -62,6 +62,8 @@ struct mirror_group {
     uint32_t layers; /* bit per layer id */
     const uint8_t *excluded;
     uint8_t excluded_len;
+    const uint32_t *combo_pairs; /* `combo-pairs`, NULL if none */
+    uint16_t combo_pairs_len;
 };
 
 struct mirror_cfg {
@@ -127,15 +129,45 @@ enum mirror_mode {
 #define MIR_LAYER_BIT(node_id, prop, idx) | BIT(DT_PROP_BY_IDX(node_id, prop, idx))
 #define MIR_GROUP_LAYERS(child) ((uint32_t)(0 DT_FOREACH_PROP_ELEM(child, layers, MIR_LAYER_BIT)))
 
+/* combo-pairs: entries are key positions or separators; one MIRROR_WITH per pair, one
+ * MIRROR_NEXT between pairs; no empty combo (separator first, last or doubled). The order of
+ * the separators is checked when the list is walked (a mistake disables it, logged). */
+#define MIR_IS_SEP(v) ((v) == MIRROR_WITH || (v) == MIRROR_NEXT)
+#define MIR_PAIR_AT(child, i) DT_PROP_BY_IDX(child, combo_pairs, i)
+#define MIR_CHECK_PAIR_ELEM(node_id, prop, idx)                                                    \
+    BUILD_ASSERT(DT_PROP_BY_IDX(node_id, prop, idx) < ZMK_KEYMAP_LEN ||                            \
+                     MIR_IS_SEP(DT_PROP_BY_IDX(node_id, prop, idx)),                               \
+                 "zmk,behavior-mirror: `combo-pairs` entries are key positions, MIRROR_WITH "      \
+                 "or MIRROR_NEXT");
+#define MIR_COUNT_WITH(node_id, prop, idx) +(DT_PROP_BY_IDX(node_id, prop, idx) == MIRROR_WITH)
+#define MIR_COUNT_NEXT(node_id, prop, idx) +(DT_PROP_BY_IDX(node_id, prop, idx) == MIRROR_NEXT)
+#define MIR_CHECK_PAIR_ADJ(i, child)                                                               \
+    BUILD_ASSERT(!(MIR_IS_SEP(MIR_PAIR_AT(child, i)) &&                                            \
+                   MIR_IS_SEP(MIR_PAIR_AT(child, UTIL_INC(i)))),                                   \
+                 "zmk,behavior-mirror: `combo-pairs` has an empty combo (two separators in a row)");
+#define MIR_PAIRS_CHECKS(child)                                                                    \
+    DT_FOREACH_PROP_ELEM(child, combo_pairs, MIR_CHECK_PAIR_ELEM)                                  \
+    BUILD_ASSERT((0 DT_FOREACH_PROP_ELEM(child, combo_pairs, MIR_COUNT_WITH)) ==                   \
+                     (0 DT_FOREACH_PROP_ELEM(child, combo_pairs, MIR_COUNT_NEXT)) + 1,             \
+                 "zmk,behavior-mirror: `combo-pairs` needs one MIRROR_WITH per pair and "          \
+                 "MIRROR_NEXT between pairs");                                                     \
+    BUILD_ASSERT(!MIR_IS_SEP(MIR_PAIR_AT(child, 0)) &&                                             \
+                     !MIR_IS_SEP(MIR_PAIR_AT(child, UTIL_DEC(DT_PROP_LEN(child, combo_pairs)))),   \
+                 "zmk,behavior-mirror: `combo-pairs` can't start or end with a separator");        \
+    LISTIFY(UTIL_DEC(DT_PROP_LEN(child, combo_pairs)), MIR_CHECK_PAIR_ADJ, (), child)
+
 #define MIR_GROUP_CHECKS(child)                                                                    \
     DT_FOREACH_PROP_ELEM(child, layers, MIR_CHECK_LAYER)                                           \
     COND_CODE_1(DT_NODE_HAS_PROP(child, excluded_positions),                                       \
-                (DT_FOREACH_PROP_ELEM(child, excluded_positions, MIR_CHECK_EXCLUDED)), ())
+                (DT_FOREACH_PROP_ELEM(child, excluded_positions, MIR_CHECK_EXCLUDED)), ())         \
+    COND_CODE_1(DT_NODE_HAS_PROP(child, combo_pairs), (MIR_PAIRS_CHECKS(child)), ())
 
 #define MIR_GROUP_EXCLUDED_ARRAY(child)                                                            \
     COND_CODE_1(DT_NODE_HAS_PROP(child, excluded_positions),                                       \
                 (static const uint8_t mir_excl_##child[] = DT_PROP(child, excluded_positions);),   \
-                ())
+                ())                                                                                \
+    COND_CODE_1(DT_NODE_HAS_PROP(child, combo_pairs),                                              \
+                (static const uint32_t mir_pairs_##child[] = DT_PROP(child, combo_pairs);), ())
 
 #define MIR_GROUP_ENTRY(child)                                                                     \
     {                                                                                              \
@@ -143,6 +175,9 @@ enum mirror_mode {
         .excluded = COND_CODE_1(DT_NODE_HAS_PROP(child, excluded_positions), (mir_excl_##child),   \
                                 (NULL)),                                                           \
         .excluded_len = DT_PROP_LEN_OR(child, excluded_positions, 0),                              \
+        .combo_pairs =                                                                             \
+            COND_CODE_1(DT_NODE_HAS_PROP(child, combo_pairs), (mir_pairs_##child), (NULL)),        \
+        .combo_pairs_len = DT_PROP_LEN_OR(child, combo_pairs, 0),                                  \
     },
 
 #define MIR_GROUP_COUNT(child) +1
@@ -168,7 +203,8 @@ enum mirror_mode {
                  "zmk,behavior-mirror: `overlay-id` must be 0..255");                              \
     DT_INST_FOREACH_CHILD(n, MIR_GROUP_CHECKS)                                                     \
     DT_INST_FOREACH_CHILD(n, MIR_GROUP_EXCLUDED_ARRAY)                                             \
-    static const struct mirror_group mir_groups_##n[] = {DT_INST_FOREACH_CHILD(n, MIR_GROUP_ENTRY)}; \
+    static const struct mirror_group mir_groups_##n[] = {                                          \
+        DT_INST_FOREACH_CHILD(n, MIR_GROUP_ENTRY)};                                                \
     COND_CODE_1(DT_INST_NODE_HAS_PROP(n, mirror_positions),                                        \
                 (static const uint8_t mir_map_##n[] = DT_INST_PROP(n, mirror_positions);), ())     \
     MIR_BINDINGS_ARRAY(n, enter, mir_enter_##n)                                                    \
@@ -202,6 +238,9 @@ static uint8_t oneshot_key; /* physical key (+1) that is using up the one-shot; 
 
 static uint8_t phys_out[ZMK_KEYMAP_LEN]; /* see MIR_SWALLOWED */
 static bool out_held[ZMK_KEYMAP_LEN];    /* this position is held as some key's output */
+/* The last press that produced this position was mirrored. Kept after the release, because a
+ * combo can fire on a key's release (a longer combo was still pending). */
+static bool out_last_mirrored[ZMK_KEYMAP_LEN];
 
 static struct {
     bool armed;
@@ -331,6 +370,92 @@ void zmk_mirror_mode_pass_next(const struct zmk_position_state_changed *ev) {
     pass_next.state = ev->state;
     pass_next.timestamp = ev->timestamp;
 }
+
+/* Same set of positions (combo key-positions have no duplicates). */
+static bool mirror_same_combo(const uint32_t *member, int member_len, const int32_t *positions,
+                              int len) {
+    if (member_len != len) {
+        return false;
+    }
+    for (int i = 0; i < member_len; i++) {
+        bool found = false;
+        for (int j = 0; j < len && !found; j++) {
+            found = (positions[j] >= 0 && (uint32_t)positions[j] == member[i]);
+        }
+        if (!found) {
+            return false;
+        }
+    }
+    return true;
+}
+
+int zmk_mirror_mode_combo_partner(const int32_t *positions, int len, int32_t *partner, int cap) {
+    if (active == NULL || len <= 0) {
+        return 0;
+    }
+    for (int i = 0; i < len; i++) {
+        if (positions[i] < 0 || positions[i] >= ZMK_KEYMAP_LEN ||
+            !out_last_mirrored[positions[i]]) {
+            return 0; /* this combo wasn't reached through mirrored keys */
+        }
+    }
+
+    zmk_keymap_layer_id_t top = zmk_keymap_layer_index_to_id(zmk_keymap_highest_layer_active());
+    const struct mirror_group *g = mirror_group_for_layer(active, top);
+    if (g == NULL || g->combo_pairs == NULL) {
+        return 0;
+    }
+
+    /* Walk <A... WITH B... (NEXT C... WITH D...)*>. */
+    const uint32_t *v = g->combo_pairs;
+    int n = g->combo_pairs_len;
+    int i = 0;
+    while (i < n) {
+        int a0 = i;
+        while (i < n && !MIR_IS_SEP(v[i])) {
+            i++;
+        }
+        int a_len = i - a0;
+        if (a_len == 0 || i >= n || v[i] != MIRROR_WITH) {
+            break;
+        }
+        i++;
+        int b0 = i;
+        while (i < n && !MIR_IS_SEP(v[i])) {
+            i++;
+        }
+        int b_len = i - b0;
+        if (b_len == 0 || (i < n && v[i] != MIRROR_NEXT)) {
+            break;
+        }
+        i++;
+
+        const uint32_t *other = NULL;
+        int other_len = 0;
+        if (mirror_same_combo(&v[a0], a_len, positions, len)) {
+            other = &v[b0];
+            other_len = b_len;
+        } else if (mirror_same_combo(&v[b0], b_len, positions, len)) {
+            other = &v[a0];
+            other_len = a_len;
+        }
+        if (other != NULL) {
+            if (other_len > cap) {
+                return 0;
+            }
+            for (int k = 0; k < other_len; k++) {
+                partner[k] = (int32_t)other[k];
+            }
+            return other_len;
+        }
+    }
+
+    if (i < n) {
+        LOG_ERR("instance %d: `combo-pairs` separators out of order at entry %d, ignored",
+                active->index, i);
+    }
+    return 0;
+}
 #endif
 
 /* ---- the position listener ------------------------------------------------------------- */
@@ -357,6 +482,7 @@ static int mirror_on_press(struct zmk_position_state_changed *ev, uint8_t p) {
 
     out_held[q] = true;
     phys_out[p] = q + 1;
+    out_last_mirrored[q] = (q != p);
 
     if (q != p) {
         LOG_DBG("position %d acts as %d", p, q);
@@ -485,7 +611,8 @@ static int mirror_init(const struct device *dev) {
 
     /* overlay-id should be unique, or the host can't tell instances apart. */
     for (int i = 0; i < ARRAY_SIZE(mir_cfgs); i++) {
-        if (mir_cfgs[i] != cfg && cfg->overlay_id != 0 && mir_cfgs[i]->overlay_id == cfg->overlay_id) {
+        if (mir_cfgs[i] != cfg && cfg->overlay_id != 0 &&
+            mir_cfgs[i]->overlay_id == cfg->overlay_id) {
             LOG_WRN("instances %d and %d share overlay-id %d", cfg->index, mir_cfgs[i]->index,
                     cfg->overlay_id);
         }

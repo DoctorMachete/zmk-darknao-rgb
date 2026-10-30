@@ -34,6 +34,14 @@ bool zmk_mirror_mode_oneshot_armed(void);
  */
 #if IS_ENABLED(CONFIG_ZMK_BEHAVIOR_MIRROR) && IS_ENABLED(CONFIG_ZMK_MIRROR_MODE_COMBOS)
 void zmk_mirror_mode_pass_next(const struct zmk_position_state_changed *ev);
+
+/*
+ * Called by combo.c when a combo fires. If every key of the combo (`positions`, `len`) was
+ * last pressed through mirroring, and the active instance's group for the top layer lists
+ * this combo in `combo-pairs`, copy the partner combo's key positions to `partner` and
+ * return how many there are. Otherwise (or if they don't fit in `cap`) return 0.
+ */
+int zmk_mirror_mode_combo_partner(const int32_t *positions, int len, int32_t *partner, int cap);
 #else
 static inline void zmk_mirror_mode_pass_next(const struct zmk_position_state_changed *ev) {
     ARG_UNUSED(ev);

@@ -1,0 +1,17 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* on: 3+2+1 act as 0+1+2: Z, not paired, unchanged */
+        ZMK_MOCK_PRESS(2,0,10)
+        ZMK_MOCK_RELEASE(2,0,10)
+        ZMK_MOCK_PRESS(0,3,10)
+        ZMK_MOCK_PRESS(0,2,10)
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_RELEASE(0,3,10)
+        ZMK_MOCK_RELEASE(0,2,10)
+        ZMK_MOCK_RELEASE(0,1,10)
+        ZMK_MOCK_PRESS(2,0,10)
+        ZMK_MOCK_RELEASE(2,0,10)
+    >;
+};

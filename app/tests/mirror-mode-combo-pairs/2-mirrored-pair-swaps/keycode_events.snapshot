@@ -1,0 +1,16 @@
+mirror: instance 0 on, mode 0
+mirror: position 3 acts as 0
+mirror: position 2 acts as 1
+combo: mirror pair, combo 0 uses the behavior of combo 1
+pressed: usage_page 0x07 keycode 0x30 implicit_mods 0x00 explicit_mods 0x00
+mirror: position 3 release acts as 0
+released: usage_page 0x07 keycode 0x30 implicit_mods 0x00 explicit_mods 0x00
+mirror: position 2 release acts as 1
+mirror: position 2 acts as 1
+mirror: position 1 acts as 2
+combo: mirror pair, combo 1 uses the behavior of combo 0
+pressed: usage_page 0x07 keycode 0x2F implicit_mods 0x00 explicit_mods 0x00
+mirror: position 2 release acts as 1
+released: usage_page 0x07 keycode 0x2F implicit_mods 0x00 explicit_mods 0x00
+mirror: position 1 release acts as 2
+mirror: instance 0 off

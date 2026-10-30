@@ -1,6 +1,6 @@
 # PATCH — mirror mode (`zmk,behavior-mirror`) + host notifier (`0xF4`)
 
-**Status: implemented and tested off-hardware, not yet flashed.** 17 native_posix cases,
+**Status: implemented and tested off-hardware, not yet flashed.** 22 native_posix cases,
 build-failure checks, a host test of the packet bytes, the full suite, and GO60 builds
 with and without zmk-raw-hid (§9).
 
@@ -33,6 +33,13 @@ the deviations in §8. Packet: `MIRROR_PACKET_0xF4.md` (project doc). Background
         alphas {
             layers = <LAYER__CMKDH LAYER__ANDROID LAYER__SMSHFT_ON /* … every layer that can sit on top while typing */>;
             excluded-positions = <POS_LH_T1 POS_LH_T2 POS_LH_T3 POS_RH_T3 POS_RH_T2 POS_RH_T1>;
+            combo-pairs = <                                             // §3.3: opener/closer swap
+                POS_LH_C4R4 POS_LH_C3R4 MIRROR_WITH POS_LH_C3R4 POS_LH_C2R4    // <  >
+                MIRROR_NEXT
+                POS_RH_C2R4 POS_RH_C3R4 MIRROR_WITH POS_RH_C3R4 POS_RH_C4R4    // (  )
+                MIRROR_NEXT
+                POS_RH_C2R2 POS_RH_C3R2 MIRROR_WITH POS_RH_C3R2 POS_RH_C4R2    // [  ]
+            >;
         };
         accents {
             layers = <LAYER__ACCENTS>;
@@ -65,6 +72,7 @@ the deviations in §8. Packet: `MIRROR_PACKET_0xF4.md` (project doc). Background
 | `not-press-release-outputs`, `tap-ms`, `wait-ms` | instance | off, 5, 5 | as on caps word and the idle lock: set the first for pixel feedback (constraint #9) |
 | `layers` | each child | required | layers this group mirrors on |
 | `excluded-positions` | each child | none | keys never mirrored while one of this group's layers is on top |
+| `combo-pairs` | each child | none | combos whose outputs swap when reached through mirrored keys (§3.3) |
 
 Map macros in `dt-bindings/zmk/mirror.h`:
 - `MIRROR_MAP_GO60` reflects each row (row 1: `11 10 … 0`), the row-5 keys and the thumbs.
@@ -142,7 +150,41 @@ millisecond, and keys read in one matrix scan share a timestamp.
 Hold-tap re-raises with `ZMK_EVENT_RAISE_AT(…, behavior_hold_tap)`, which continues after
 hold-tap, so the mirror never sees those twice.
 
-### 3.3 Other notes
+### 3.3 Combo pairs: openers and closers (`combo-pairs`)
+
+Mirroring a combo's keys reaches the combo at the mirrored positions, so a combo keeps its
+output but moves to the other hand. For an opener/closer pair placed side by side (`<` on
+the outer pair, `>` on the inner pair) that reverses the reading order on the other hand.
+`combo-pairs` lists such pairs in the group; when one of them fires through mirrored keys,
+the other one's binding is used, so the opener stays on the left.
+
+```dts
+combo-pairs = <POS_LH_C4R4 POS_LH_C3R4 MIRROR_WITH POS_LH_C3R4 POS_LH_C2R4
+               MIRROR_NEXT
+               POS_RH_C2R4 POS_RH_C3R4 MIRROR_WITH POS_RH_C3R4 POS_RH_C4R4>;
+```
+
+- Each combo is written as its `key-positions`, unmirrored, exactly as in the combo (order
+  inside a combo doesn't matter). `MIRROR_WITH` separates the two combos of a pair,
+  `MIRROR_NEXT` separates pairs (both in `dt-bindings/zmk/mirror.h`). Alias them to shorter
+  names if you like, but not `____`: in the GO60 keymap that's the adaptive-sequence `_OR_`.
+- **When it swaps:** every key of the combo was last pressed *through mirroring*, and the
+  group for the current top layer lists the combo. Mirror off, an unlisted layer on top, or
+  excluded keys: no swap. That "last pressed" is remembered per position past the key's
+  release, because a combo can fire on a release (when a longer combo was still pending,
+  test 3).
+- **What swaps:** only the binding. Key matching, timeouts and `slow-release` stay the
+  combo's own, and the release goes to the binding that was pressed. The partner must be a
+  combo active on the current top layer, or nothing swaps (logged).
+- Nothing changes in the combos, the editor or the MoErgo build: the list lives in the
+  fork-only mirror node.
+- Only with `CONFIG_ZMK_MIRROR_MODE_COMBOS=y` (the default); otherwise combos aren't
+  mirrored at all.
+- `combo.c`: `active_combo` gains `behavior_idx` (the combo whose binding was pressed), set
+  by `combo_mirror_partner()`, which asks `zmk_mirror_mode_combo_partner()`. Without mirror
+  mode it's the combo itself.
+
+### 3.4 Other notes
 
 - **Central only** (`!ZMK_SPLIT || ZMK_SPLIT_ROLE_CENTRAL`). Right-half keys reach the
   central as position events; nothing crosses the split, and the 20-byte rule is
@@ -157,7 +199,7 @@ hold-tap, so the mirror never sees those twice.
 
 ## 4. Build-time checks
 
-Each fails the build with a `zmk,behavior-mirror: …` message (all seven forced on
+Each fails the build with a `zmk,behavior-mirror: …` message (all eleven forced on
 purpose, §9):
 
 | check | message (shortened) |
@@ -169,6 +211,14 @@ purpose, §9):
 | a `layers` entry ≥ layer count | a group's `layers` entry is not a layer of this keymap |
 | an `excluded-positions` entry ≥ key count | … is not a key position |
 | no child group | needs at least one child group with `layers` |
+| a `combo-pairs` entry that's neither a key position nor a separator | entries are key positions, MIRROR_WITH or MIRROR_NEXT |
+| `MIRROR_WITH` count ≠ `MIRROR_NEXT` count + 1 | needs one MIRROR_WITH per pair and MIRROR_NEXT between pairs |
+| two separators in a row | has an empty combo |
+| a separator first or last | can't start or end with a separator |
+
+A `combo-pairs` list with the separators in the wrong order but the right counts (e.g.
+`a NEXT b WITH c WITH d`) passes the build; it's rejected when walked, with a log error,
+and no pair in that group swaps.
 
 The same layer in different instances is fine. Two instances sharing a non-zero
 `overlay-id` only logs a warning at boot.
@@ -216,10 +266,11 @@ use. Full spec for the overlay side: **`MIRROR_PACKET_0xF4.md`**.
 `app/include/dt-bindings/zmk/mirror.h`, `app/include/zmk/mirror_mode.h`,
 `app/include/zmk/events/mirror_mode_changed.h`, `app/src/events/mirror_mode_changed.c`,
 `app/dts/bindings/behaviors/zmk,behavior-mirror.yaml`, `app/tests/mirror-mode/` (11
-cases), `app/tests/mirror-mode-combos/` (6 cases), `app/tests-host/mirror-notifier/`, this
-doc.
-**Modified:** `app/src/combo.c` (the two `zmk_mirror_mode_pass_next()` calls and an
-include), `app/Kconfig.behaviors`, `app/CMakeLists.txt`, `PATCH_00_INDEX.md`,
+cases), `app/tests/mirror-mode-combos/` (6 cases), `app/tests/mirror-mode-combo-pairs/` (5
+cases), `app/tests-host/mirror-notifier/`, this doc.
+**Modified:** `app/src/combo.c` (the two `zmk_mirror_mode_pass_next()` calls, the
+`combo-pairs` swap: `behavior_idx` and `combo_mirror_partner()`, an include),
+`app/Kconfig.behaviors`, `app/CMakeLists.txt`, `PATCH_00_INDEX.md`,
 `PATCH_ARCHITECTURE.md` (§7.1).
 
 ## 8. Deviations from the side-chat spec
@@ -230,6 +281,7 @@ include), `app/Kconfig.behaviors`, `app/CMakeLists.txt`, `PATCH_00_INDEX.md`,
 | re-raise guard table (position, timestamp, state) | explicit hook in `combo.c` | §3.2 |
 | — | `overlay-id` | the `0xF4` notifier (the notifier handoff's proposal) |
 | — | `not-press-release-outputs`, `tap-ms`, `wait-ms` | same `enter`/`exit` model as caps word and the idle lock |
+| — | `combo-pairs` | opener/closer combos (user request, 2026-10-30); §3.3 |
 | optional warning if the on/off key is mirrorable | not done | can't be known statically (which layer is on top); rule 2.5 documents it |
 | per-instance combo mirroring, `idle-timeout-ms`, per-group map | not done | out of scope in the spec |
 
@@ -263,21 +315,36 @@ layer 2 unlisted; `enter`/`exit` are `&kp F13`–`F16` so edges show in the key 
 | `5-combos-not-mirrored-kconfig` | `CONFIG_ZMK_MIRROR_MODE_COMBOS=n`: combos keep physical keys, plain keys still mirror |
 | `6-hold-tap-combos-not-mirrored-kconfig` | the mod-tap case with `=n` |
 
+`app/tests/mirror-mode-combo-pairs/` (`[` on {0,1}, `]` on {1,2}, paired; `Z` on {0,1,2},
+not paired; layer 1 unlisted):
+
+| case | checks |
+|---|---|
+| `1-off-no-swap` | mirror off: `[` and `]` as written |
+| `2-mirrored-pair-swaps` | mirrored twins of `[` give `]`, and of `]` give `[` |
+| `3-fires-on-release-still-swapped` | the combo fires on a key's release (the 3-key combo was pending): still swapped |
+| `4-unpaired-combo-unchanged` | a mirrored combo that isn't in `combo-pairs` keeps its output |
+| `5-unlisted-layer-no-swap` | mirror on, unlisted layer on top: keys not mirrored, no swap |
+
 - Snapshots reviewed line by line; no unexpected-re-raise warning in any log.
 - **Mutation checks:** combo hook disabled → combo cases 2 and 3 fail; releases following
-  the current mode → case 5 fails; no "already held" rule → case 6 fails.
-- **Build-failure checks:** each of the seven §4 checks forced in a scratch keymap; each
+  the current mode → case 5 fails; no "already held" rule → case 6 fails; `combo-pairs`
+  deciding from "keys still held" instead of "last pressed through mirroring" → pairs
+  case 3 fails.
+- **Build-failure checks:** each of the eleven §4 checks forced in a scratch keymap; each
   fails with its message, and a valid control builds.
+- Upstream `app/tests/combo/` (25 cases) pass with the `combo.c` changes.
 - **Maps:** `MIRROR_MAP_GO60` equals the C default map, and is its own inverse;
   `MIRROR_MAP_GO60_FROW_SWAP` differs only in row 1.
 - **Host test** `sh app/tests-host/mirror-notifier/run.sh`: the real packet code, copied
   verbatim; the bytes for off / on / one-shot / high layers, the padding, and the overlay's
   decode rule.
-- Full suite (`run-test.sh all`): 296 pass, 1 pending (upstream's own `pending` case), no
-  failures; 297 cases (the 281 from before plus 16 mirror cases; combo case 6 was added
-  after and passes on its own). Upstream's combo tests are unchanged by the `combo.c` hook.
+- Full suite (`run-test.sh all`): 302 pass, 1 pending (upstream's own `pending` case), no
+  failures; 303 cases (the 281 from before plus the 22 mirror cases). Upstream's combo
+  tests are unchanged by the `combo.c` changes.
 - **GO60 builds** (stock keymap + two instances, one on the built-in map, one on
-  `MIRROR_MAP_GO60_FROW_SWAP`, a `&pixel` enter/exit): `go60_lh` and `go60_rh` clean; LH
+  `MIRROR_MAP_GO60_FROW_SWAP`, a `&pixel` enter/exit, and your three bracket pairs as
+  real combos at your positions with `combo-pairs`): `go60_lh` and `go60_rh` clean; LH
   again with your zmk-raw-hid (`aifix`) + `raw_hid_adapter`: notifier compiled in, no
   warnings. Mirror code is absent from the RH image (central only).
 - **Not done:** hardware; the notifier's timing (settle / dedupe / forced resend) has not

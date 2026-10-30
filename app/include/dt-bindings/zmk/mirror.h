@@ -16,6 +16,17 @@
 #define MIRROR_ONESHOT 4 /* on for the next key that actually gets mirrored */
 
 /*
+ * Separators for a group's `combo-pairs` (PATCH_MIRROR_MODE.md §3.3):
+ *   combo-pairs = <A1 A2 MIRROR_WITH B1 B2  MIRROR_NEXT  C1 C2 MIRROR_WITH D1 D2>;
+ * pairs combo {A1 A2} with combo {B1 B2}, and {C1 C2} with {D1 D2}: when one of them fires
+ * through mirrored key presses, the other one's binding is used instead.
+ * Alias them to shorter names in the keymap if you like (not `____`: in the GO60 keymap
+ * that is the adaptive-sequence `_OR_`).
+ */
+#define MIRROR_WITH 0xFFFE /* between the two combos of a pair */
+#define MIRROR_NEXT 0xFFFF /* between pairs */
+
+/*
  * GO60 mirror maps for `mirror-positions`. Entry p = the key that pressing key p acts as.
  * Key numbers: rows 1-4 are 0-11, 12-23, 24-35, 36-47; row 5 is 48-53
  * (LH_C4R5 LH_C3R5 LH_C2R5 RH_C2R5 RH_C3R5 RH_C4R5); thumbs 54-59

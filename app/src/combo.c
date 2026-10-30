@@ -60,6 +60,9 @@ struct combo_cfg {
 
 struct active_combo {
     uint16_t combo_idx;
+    // Fork: the combo whose behavior was pressed, and is released: combo_idx itself, or its
+    // mirror-mode `combo-pairs` partner (PATCH_MIRROR_MODE.md §3.3).
+    uint16_t behavior_idx;
     // key_positions_pressed is filled with key_positions when the combo is pressed.
     // The keys are removed from this array when they are released.
     // Once this array is empty, the behavior is released.
@@ -340,6 +343,44 @@ static struct active_combo *store_active_combo(int32_t combo_idx) {
     return NULL;
 }
 
+#if IS_ENABLED(CONFIG_ZMK_BEHAVIOR_MIRROR) && IS_ENABLED(CONFIG_ZMK_MIRROR_MODE_COMBOS)
+// Fork: mirror mode's `combo-pairs`. If this combo was reached through mirrored keys and is
+// paired with another, use that one's behavior (e.g. < and > swap, so the opener stays left).
+static int combo_mirror_partner(int combo_idx) {
+    const struct combo_cfg *combo = &combos[combo_idx];
+    int32_t partner[MAX_COMBO_KEYS];
+    int partner_len = zmk_mirror_mode_combo_partner(combo->key_positions, combo->key_position_len,
+                                                    partner, ARRAY_SIZE(partner));
+    if (partner_len == 0) {
+        return combo_idx;
+    }
+
+    uint8_t layer = zmk_keymap_highest_layer_active();
+    for (int i = 0; i < ARRAY_SIZE(combos); i++) {
+        const struct combo_cfg *c = &combos[i];
+        if (c->key_position_len != partner_len || !combo_active_on_layer(c, layer)) {
+            continue;
+        }
+        bool same = true;
+        for (int k = 0; k < partner_len && same; k++) {
+            bool found = false;
+            for (int j = 0; j < partner_len && !found; j++) {
+                found = (c->key_positions[j] == partner[k]);
+            }
+            same = found;
+        }
+        if (same) {
+            LOG_DBG("combo: mirror pair, combo %d uses the behavior of combo %d", combo_idx, i);
+            return i;
+        }
+    }
+    LOG_WRN("combo: mirror pair of combo %d has no combo active on layer %d", combo_idx, layer);
+    return combo_idx;
+}
+#else
+static inline int combo_mirror_partner(int combo_idx) { return combo_idx; }
+#endif
+
 static void activate_combo(int combo_idx) {
     struct active_combo *active_combo = store_active_combo(combo_idx);
     if (active_combo == NULL) {
@@ -348,7 +389,8 @@ static void activate_combo(int combo_idx) {
         return;
     }
     move_pressed_keys_to_active_combo(active_combo);
-    press_combo_behavior(combo_idx, &combos[combo_idx],
+    active_combo->behavior_idx = combo_mirror_partner(combo_idx);
+    press_combo_behavior(active_combo->behavior_idx, &combos[active_combo->behavior_idx],
                          active_combo->key_positions_pressed[0].data.timestamp);
 }
 
@@ -386,7 +428,9 @@ static bool release_combo_key(int32_t position, int64_t timestamp) {
             active_combo->key_positions_pressed_count--;
             const struct combo_cfg *c = &combos[active_combo->combo_idx];
             if ((c->slow_release && all_keys_released) || (!c->slow_release && all_keys_pressed)) {
-                release_combo_behavior(active_combo->combo_idx, c, timestamp);
+                // Fork: release the behavior that was pressed (see behavior_idx).
+                release_combo_behavior(active_combo->behavior_idx,
+                                       &combos[active_combo->behavior_idx], timestamp);
             }
             if (all_keys_released) {
                 deactivate_combo(combo_idx);
