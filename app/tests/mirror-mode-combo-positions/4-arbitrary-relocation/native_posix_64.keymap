@@ -1,0 +1,17 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* off: physical 9+10 are J, K. On: they act as 2+3 for combos only: X */
+        ZMK_MOCK_PRESS(2,1,10)
+        ZMK_MOCK_PRESS(2,2,100)
+        ZMK_MOCK_RELEASE(2,1,10)
+        ZMK_MOCK_RELEASE(2,2,10)
+        ZMK_MOCK_PRESS(2,0,10)
+        ZMK_MOCK_RELEASE(2,0,10)
+        ZMK_MOCK_PRESS(2,1,10)
+        ZMK_MOCK_PRESS(2,2,100)
+        ZMK_MOCK_RELEASE(2,1,10)
+        ZMK_MOCK_RELEASE(2,2,10)
+    >;
+};

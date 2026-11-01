@@ -1,0 +1,18 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* on: physical 0+1 match combo {0,1} (combo-positions keeps row 0): Y, not X */
+        ZMK_MOCK_PRESS(2,0,10)
+        ZMK_MOCK_RELEASE(2,0,10)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_PRESS(0,1,100)
+        ZMK_MOCK_RELEASE(0,0,10)
+        ZMK_MOCK_RELEASE(0,1,10)
+        /* physical 2+3: X */
+        ZMK_MOCK_PRESS(0,2,10)
+        ZMK_MOCK_PRESS(0,3,100)
+        ZMK_MOCK_RELEASE(0,2,10)
+        ZMK_MOCK_RELEASE(0,3,10)
+    >;
+};

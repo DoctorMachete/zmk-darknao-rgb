@@ -1,0 +1,22 @@
+#include "../behavior_keymap.dtsi"
+
+/* Identity combo-positions: combos keep their physical keys while keys are mirrored. */
+&mirror {
+    combo-positions = <0 1 2 3  4 5 6 7  8 9 10 11>;
+};
+
+&kscan {
+    events = <
+        /* on; physical 0+1: no combo, mirrored one by one: D, C. Physical 2+3: combo X */
+        ZMK_MOCK_PRESS(2,0,10)
+        ZMK_MOCK_RELEASE(2,0,10)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_PRESS(0,1,100)
+        ZMK_MOCK_RELEASE(0,0,10)
+        ZMK_MOCK_RELEASE(0,1,10)
+        ZMK_MOCK_PRESS(0,2,10)
+        ZMK_MOCK_PRESS(0,3,100)
+        ZMK_MOCK_RELEASE(0,2,10)
+        ZMK_MOCK_RELEASE(0,3,10)
+    >;
+};

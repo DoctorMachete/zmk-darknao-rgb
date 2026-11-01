@@ -1,0 +1,17 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* off: combo {3,7} is E. a on: F */
+        ZMK_MOCK_PRESS(0,3,10)
+        ZMK_MOCK_PRESS(1,3,100)
+        ZMK_MOCK_RELEASE(0,3,10)
+        ZMK_MOCK_RELEASE(1,3,10)
+        ZMK_MOCK_PRESS(1,0,10)
+        ZMK_MOCK_RELEASE(1,0,10)
+        ZMK_MOCK_PRESS(0,3,10)
+        ZMK_MOCK_PRESS(1,3,100)
+        ZMK_MOCK_RELEASE(0,3,10)
+        ZMK_MOCK_RELEASE(1,3,10)
+    >;
+};

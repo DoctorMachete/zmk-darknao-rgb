@@ -1,0 +1,83 @@
+#include <dt-bindings/zmk/keys.h>
+#include <dt-bindings/zmk/mirror.h>
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/kscan_mock.h>
+
+/*
+ * Fork: &mirror-morph (PATCH_MIRROR_MODE.md §5). Two instances on layer 0 with an identity
+ * map: nothing moves, the instances only pick morph bindings ("virtual layers").
+ *
+ *  pos  0 mm_any (A / B)   1 mm_b (C / D for b)   2 mm_ab (E / F for a / G for b)   3 Z
+ *       4 &mir_a TOG       5 &mir_b TOG           6 &mo 1                           7 Y
+ *       8 &mir_a MO        9..11 none
+ *
+ * Combo {3,7} -> mm_ab. Layer 1 is all &trans and in no group.
+ */
+&kscan {
+    rows = <3>;
+    columns = <4>;
+};
+
+/ {
+    behaviors {
+        mir_a: mirror_a {
+            compatible = "zmk,behavior-mirror";
+            #binding-cells = <1>;
+            mirror-positions = <0 1 2 3 4 5 6 7 8 9 10 11>;
+            base {
+                layers = <0>;
+            };
+        };
+        mir_b: mirror_b {
+            compatible = "zmk,behavior-mirror";
+            #binding-cells = <1>;
+            mirror-positions = <0 1 2 3 4 5 6 7 8 9 10 11>;
+            base {
+                layers = <0>;
+            };
+        };
+        mm_any: mm_any {
+            compatible = "zmk,behavior-mirror-morph";
+            #binding-cells = <0>;
+            bindings = <&kp A>, <&kp B>;
+        };
+        mm_b: mm_b {
+            compatible = "zmk,behavior-mirror-morph";
+            #binding-cells = <0>;
+            instances = <&mir_b>;
+            bindings = <&kp C>, <&kp D>;
+        };
+        mm_ab: mm_ab {
+            compatible = "zmk,behavior-mirror-morph";
+            #binding-cells = <0>;
+            instances = <&mir_a &mir_b>;
+            bindings = <&kp E>, <&kp F>, <&kp G>;
+        };
+    };
+
+    combos {
+        compatible = "zmk,combos";
+        combo_zy {
+            timeout-ms = <50>;
+            key-positions = <3 7>;
+            bindings = <&mm_ab>;
+        };
+    };
+
+    keymap {
+        compatible = "zmk,keymap";
+
+        default_layer {
+            bindings = <
+                &mm_any           &mm_b             &mm_ab  &kp Z
+                &mir_a MIRROR_TOG &mir_b MIRROR_TOG &mo 1   &kp Y
+                &mir_a MIRROR_MO  &none             &none   &none>;
+        };
+        other_layer {
+            bindings = <
+                &trans &trans &trans &trans
+                &trans &trans &trans &trans
+                &trans &trans &trans &trans>;
+        };
+    };
+};

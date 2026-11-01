@@ -1,12 +1,12 @@
 mirror: instance 0 on, mode 0
 mirror: position 2 acts as 1
-mirror: position 1 acts as 2
-mirror: position 4 acts as 7
 pressed: usage_page 0x07 keycode 0x05 implicit_mods 0x00 explicit_mods 0x00
-combo: reraise 2
-combo: reraise 7
+combo: reraise 1
+combo: reraise 4
+mirror: position 1 acts as 2
 pressed: usage_page 0x07 keycode 0x06 implicit_mods 0x00 explicit_mods 0x00
-combo: reraise 7
+combo: reraise 4
+mirror: position 4 acts as 7
 pressed: usage_page 0x07 keycode 0xE1 implicit_mods 0x00 explicit_mods 0x00
 mirror: position 4 release acts as 7
 released: usage_page 0x07 keycode 0xE1 implicit_mods 0x00 explicit_mods 0x00

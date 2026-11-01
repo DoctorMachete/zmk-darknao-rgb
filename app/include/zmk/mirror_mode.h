@@ -12,7 +12,6 @@
 #include <stdint.h>
 
 #include <zephyr/sys/util.h>
-#include <zmk/events/position_state_changed.h>
 
 #if IS_ENABLED(CONFIG_ZMK_BEHAVIOR_MIRROR)
 
@@ -28,22 +27,34 @@ bool zmk_mirror_mode_oneshot_armed(void);
 #endif
 
 /*
- * Called by combo.c right before it re-raises a position event from the start of the
- * listener chain. With combos mirrored, the mirror listener runs before combo and has
- * already rewritten that event, so it must let the re-raise through untouched.
+ * Called by combo.c on every key press, for combo matching only: the position a combo
+ * should see for physical key `position`. While an instance applies (it is on and the top
+ * layer is in one of its groups, the key not excluded there), that is the instance's
+ * `combo-positions` entry (its `mirror-positions` entry if it has no `combo-positions`);
+ * otherwise the position itself.
  */
-#if IS_ENABLED(CONFIG_ZMK_BEHAVIOR_MIRROR) && IS_ENABLED(CONFIG_ZMK_MIRROR_MODE_COMBOS)
-void zmk_mirror_mode_pass_next(const struct zmk_position_state_changed *ev);
+#if IS_ENABLED(CONFIG_ZMK_BEHAVIOR_MIRROR)
+int32_t zmk_mirror_mode_combo_position(int32_t position);
 
 /*
- * Called by combo.c when a combo fires. If every key of the combo (`positions`, `len`) was
- * last pressed through mirroring, and the active instance's group for the top layer lists
- * this combo in `combo-pairs`, copy the partner combo's key positions to `partner` and
- * return how many there are. Otherwise (or if they don't fit in `cap`) return 0.
+ * Called by hold-tap, which runs before the mirror listener and so sees physical keys: the
+ * position the event for physical key `position` will have once mirrored. For a press, the
+ * key it acts as right now; for a release, the key its press acted as.
  */
-int zmk_mirror_mode_combo_partner(const int32_t *positions, int len, int32_t *partner, int cap);
+int32_t zmk_mirror_mode_key_position(int32_t position, bool pressed);
+
+/*
+ * The instance that applies right now (on, and the top layer in one of its groups), or NULL.
+ * Used by &mirror-morph (PATCH_MIRROR_MODE.md §5).
+ */
+struct device;
+const struct device *zmk_mirror_mode_applying_instance(void);
 #else
-static inline void zmk_mirror_mode_pass_next(const struct zmk_position_state_changed *ev) {
-    ARG_UNUSED(ev);
+struct device;
+static inline int32_t zmk_mirror_mode_combo_position(int32_t position) { return position; }
+static inline int32_t zmk_mirror_mode_key_position(int32_t position, bool pressed) {
+    ARG_UNUSED(pressed);
+    return position;
 }
+static inline const struct device *zmk_mirror_mode_applying_instance(void) { return NULL; }
 #endif

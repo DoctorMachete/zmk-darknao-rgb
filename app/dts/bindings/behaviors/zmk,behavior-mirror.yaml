@@ -6,7 +6,7 @@ description: |
   one of its layers acts as its mirror key, without any extra layer. The decision is made
   per key press from the highest active layer: if that layer is in one of the instance's
   child groups and the key isn't in that group's excluded-positions, the press is
-  rewritten to mirror-positions[key]. Only one instance is on at a time; turning another on
+  rewritten to mirror-positions[key] (combos match it as combo-positions[key]). Only one instance is on at a time; turning another on
   switches. The parameter is MIRROR_TOG / _ON / _OFF / _MO / _ONESHOT
   (dt-bindings/zmk/mirror.h).
 
@@ -19,8 +19,16 @@ properties:
     type: array
     description: |
       One entry per key position (ZMK_KEYMAP_LEN entries): entry p is the key that
-      pressing key p acts as. A key pointing at itself is not mirrored. Optional on GO60
-      (default MIRROR_MAP_GO60); required on any other board.
+      pressing key p acts as. A key pointing at itself is not mirrored. Any relocation
+      works, not only mirrors. Optional on GO60 (default MIRROR_MAP_GO60); required on any
+      other board.
+  combo-positions:
+    type: array
+    description: |
+      Same form as mirror-positions, used only to match combos while this instance applies:
+      a press of key p takes part in combos as key combo-positions[p]. Defaults to
+      mirror-positions. Give the identity map (0 1 2 ...) to keep combos on their physical
+      keys. excluded-positions apply to it too.
   overlay-id:
     type: int
     default: 0
@@ -60,12 +68,3 @@ child-binding:
     excluded-positions:
       type: array
       description: Keys never mirrored while one of this group's layers is on top.
-    combo-pairs:
-      type: array
-      description: |
-        Pairs of combos that swap outputs when reached through mirrored keys, for
-        opener/closer pairs such as < and >. Each combo is written as its key-positions
-        (unmirrored, as in the combo itself); MIRROR_WITH separates the two combos of a
-        pair, MIRROR_NEXT separates pairs:
-          <POS_LH_C4R4 POS_LH_C3R4 MIRROR_WITH POS_LH_C3R4 POS_LH_C2R4 MIRROR_NEXT ...>
-        Only with CONFIG_ZMK_MIRROR_MODE_COMBOS (combos mirrored).

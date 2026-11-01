@@ -60,9 +60,6 @@ struct combo_cfg {
 
 struct active_combo {
     uint16_t combo_idx;
-    // Fork: the combo whose behavior was pressed, and is released: combo_idx itself, or its
-    // mirror-mode `combo-pairs` partner (PATCH_MIRROR_MODE.md §3.3).
-    uint16_t behavior_idx;
     // key_positions_pressed is filled with key_positions when the combo is pressed.
     // The keys are removed from this array when they are released.
     // Once this array is empty, the behavior is released.
@@ -275,9 +272,6 @@ static int release_pressed_keys() {
         } else {
             // reprocess events (see tests/combo/fully-overlapping-combos-3 for why this is needed)
             LOG_DBG("combo: reraising position event %d", ev->data.position);
-            // Fork: mirror mode (PATCH_MIRROR_MODE.md) already rewrote this event on its first
-            // pass; tell it not to mirror the re-raise again. No-op without mirror mode.
-            zmk_mirror_mode_pass_next(&ev->data);
             ZMK_EVENT_RAISE(*ev);
         }
     }
@@ -343,44 +337,6 @@ static struct active_combo *store_active_combo(int32_t combo_idx) {
     return NULL;
 }
 
-#if IS_ENABLED(CONFIG_ZMK_BEHAVIOR_MIRROR) && IS_ENABLED(CONFIG_ZMK_MIRROR_MODE_COMBOS)
-// Fork: mirror mode's `combo-pairs`. If this combo was reached through mirrored keys and is
-// paired with another, use that one's behavior (e.g. < and > swap, so the opener stays left).
-static int combo_mirror_partner(int combo_idx) {
-    const struct combo_cfg *combo = &combos[combo_idx];
-    int32_t partner[MAX_COMBO_KEYS];
-    int partner_len = zmk_mirror_mode_combo_partner(combo->key_positions, combo->key_position_len,
-                                                    partner, ARRAY_SIZE(partner));
-    if (partner_len == 0) {
-        return combo_idx;
-    }
-
-    uint8_t layer = zmk_keymap_highest_layer_active();
-    for (int i = 0; i < ARRAY_SIZE(combos); i++) {
-        const struct combo_cfg *c = &combos[i];
-        if (c->key_position_len != partner_len || !combo_active_on_layer(c, layer)) {
-            continue;
-        }
-        bool same = true;
-        for (int k = 0; k < partner_len && same; k++) {
-            bool found = false;
-            for (int j = 0; j < partner_len && !found; j++) {
-                found = (c->key_positions[j] == partner[k]);
-            }
-            same = found;
-        }
-        if (same) {
-            LOG_DBG("combo: mirror pair, combo %d uses the behavior of combo %d", combo_idx, i);
-            return i;
-        }
-    }
-    LOG_WRN("combo: mirror pair of combo %d has no combo active on layer %d", combo_idx, layer);
-    return combo_idx;
-}
-#else
-static inline int combo_mirror_partner(int combo_idx) { return combo_idx; }
-#endif
-
 static void activate_combo(int combo_idx) {
     struct active_combo *active_combo = store_active_combo(combo_idx);
     if (active_combo == NULL) {
@@ -389,8 +345,7 @@ static void activate_combo(int combo_idx) {
         return;
     }
     move_pressed_keys_to_active_combo(active_combo);
-    active_combo->behavior_idx = combo_mirror_partner(combo_idx);
-    press_combo_behavior(active_combo->behavior_idx, &combos[active_combo->behavior_idx],
+    press_combo_behavior(combo_idx, &combos[combo_idx],
                          active_combo->key_positions_pressed[0].data.timestamp);
 }
 
@@ -428,9 +383,7 @@ static bool release_combo_key(int32_t position, int64_t timestamp) {
             active_combo->key_positions_pressed_count--;
             const struct combo_cfg *c = &combos[active_combo->combo_idx];
             if ((c->slow_release && all_keys_released) || (!c->slow_release && all_keys_pressed)) {
-                // Fork: release the behavior that was pressed (see behavior_idx).
-                release_combo_behavior(active_combo->behavior_idx,
-                                       &combos[active_combo->behavior_idx], timestamp);
+                release_combo_behavior(active_combo->combo_idx, c, timestamp);
             }
             if (all_keys_released) {
                 deactivate_combo(combo_idx);
@@ -468,14 +421,19 @@ static void update_timeout_task() {
 
 static int position_state_down(const zmk_event_t *ev, struct zmk_position_state_changed *data) {
     int num_candidates;
+    // Fork: mirror mode (PATCH_MIRROR_MODE.md §3.3). Combos are matched at the key's
+    // `combo-positions` entry while an instance is on; the event itself stays physical, and
+    // the mirror listener (after this one) maps single keys with `mirror-positions`.
+    // Without mirror mode this is the position itself.
+    int32_t position = zmk_mirror_mode_combo_position(data->position);
     if (!pressed_keys_count) {
-        num_candidates = setup_candidates_for_first_keypress(data->position, data->timestamp);
+        num_candidates = setup_candidates_for_first_keypress(position, data->timestamp);
         if (num_candidates == 0) {
             return ZMK_EV_EVENT_BUBBLE;
         }
     } else {
         filter_timed_out_candidates(data->timestamp);
-        num_candidates = filter_candidates(data->position);
+        num_candidates = filter_candidates(position);
     }
 
     LOG_DBG("combo: capturing position event %d", data->position);
@@ -514,7 +472,6 @@ static int position_state_up(const zmk_event_t *ev, struct zmk_position_state_ch
         // correct order for e.g. hold-taps, reraise the key up event too.
         struct zmk_position_state_changed_event dupe_ev =
             copy_raised_zmk_position_state_changed(data);
-        zmk_mirror_mode_pass_next(&dupe_ev.data); // fork: see release_pressed_keys()
         ZMK_EVENT_RAISE(dupe_ev);
         return ZMK_EV_EVENT_CAPTURED;
     }

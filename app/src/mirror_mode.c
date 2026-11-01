@@ -5,9 +5,11 @@
  *
  * Fork patch: mirror mode, zmk,behavior-mirror (PATCH_MIRROR_MODE.md).
  *
- * While an instance is on, a key press on one of its layers acts as its mirror key. There is
- * no layer behind it: a listener on zmk_position_state_changed rewrites the event's position
- * in place, so everything after it (hold-tap, combos, keymap) sees the mirrored key.
+ * While an instance is on, a key press on one of its layers acts as another key. There is no
+ * layer behind it: a listener on zmk_position_state_changed rewrites the event's position in
+ * place with `mirror-positions`, so the keymap sees the new key. Combos are matched separately,
+ * with `combo-positions` (combo.c asks zmk_mirror_mode_combo_position()), so single keys and
+ * combos can be relocated differently.
  *
  *  - Decision per key press: an instance is on, the highest active layer is in one of its
  *    child groups, and the key isn't in that group's excluded-positions.
@@ -17,11 +19,9 @@
  *    key itself held) is swallowed, and so is its release.
  *  - Only one instance on at a time; turning another on switches (old exit, new enter).
  *
- * Link order (app/CMakeLists.txt): with CONFIG_ZMK_MIRROR_MODE_COMBOS this file is listed
- * right after layer_idle_lock.c, ahead of hold-tap and combo, so combos are mirrored. combo.c
- * re-raises some captured events from the start of the chain; it calls
- * zmk_mirror_mode_pass_next() first so they aren't mirrored twice. Without that option the
- * file sits after combo.c and combos keep their physical keys.
+ * Link order (app/CMakeLists.txt): this file is listed after combo.c and before keymap.c.
+ * Everything ahead of it (idle lock, hold-tap, combo) sees physical keys, and whatever combo
+ * captures and later re-raises reaches this listener exactly once.
  *
  * Threading: position events, behavior callbacks and the binding queue all run on the system
  * work queue, so the state needs no lock.
@@ -62,14 +62,14 @@ struct mirror_group {
     uint32_t layers; /* bit per layer id */
     const uint8_t *excluded;
     uint8_t excluded_len;
-    const uint32_t *combo_pairs; /* `combo-pairs`, NULL if none */
-    uint16_t combo_pairs_len;
 };
 
 struct mirror_cfg {
     uint8_t index; /* devicetree instance number */
     uint8_t overlay_id;
-    const uint8_t *map; /* ZMK_KEYMAP_LEN entries; NULL = built-in GO60 map */
+    const struct device *dev;
+    const uint8_t *map;       /* ZMK_KEYMAP_LEN entries; NULL = built-in GO60 map */
+    const uint8_t *combo_map; /* `combo-positions`; NULL = same as `map` */
     const struct mirror_group *groups;
     uint8_t groups_len;
     uint32_t layers; /* union of the groups' layers */
@@ -118,6 +118,9 @@ enum mirror_mode {
 #define MIR_CHECK_MAP_ENTRY(node_id, prop, idx)                                                    \
     BUILD_ASSERT(DT_PROP_BY_IDX(node_id, prop, idx) < ZMK_KEYMAP_LEN,                              \
                  "zmk,behavior-mirror: a `mirror-positions` entry is not a key position");
+#define MIR_CHECK_COMBO_ENTRY(node_id, prop, idx)                                                  \
+    BUILD_ASSERT(DT_PROP_BY_IDX(node_id, prop, idx) < ZMK_KEYMAP_LEN,                              \
+                 "zmk,behavior-mirror: a `combo-positions` entry is not a key position");
 #define MIR_CHECK_LAYER(node_id, prop, idx)                                                        \
     BUILD_ASSERT(DT_PROP_BY_IDX(node_id, prop, idx) < ZMK_KEYMAP_LAYERS_LEN,                       \
                  "zmk,behavior-mirror: a group's `layers` entry is not a layer of this keymap");
@@ -129,45 +132,15 @@ enum mirror_mode {
 #define MIR_LAYER_BIT(node_id, prop, idx) | BIT(DT_PROP_BY_IDX(node_id, prop, idx))
 #define MIR_GROUP_LAYERS(child) ((uint32_t)(0 DT_FOREACH_PROP_ELEM(child, layers, MIR_LAYER_BIT)))
 
-/* combo-pairs: entries are key positions or separators; one MIRROR_WITH per pair, one
- * MIRROR_NEXT between pairs; no empty combo (separator first, last or doubled). The order of
- * the separators is checked when the list is walked (a mistake disables it, logged). */
-#define MIR_IS_SEP(v) ((v) == MIRROR_WITH || (v) == MIRROR_NEXT)
-#define MIR_PAIR_AT(child, i) DT_PROP_BY_IDX(child, combo_pairs, i)
-#define MIR_CHECK_PAIR_ELEM(node_id, prop, idx)                                                    \
-    BUILD_ASSERT(DT_PROP_BY_IDX(node_id, prop, idx) < ZMK_KEYMAP_LEN ||                            \
-                     MIR_IS_SEP(DT_PROP_BY_IDX(node_id, prop, idx)),                               \
-                 "zmk,behavior-mirror: `combo-pairs` entries are key positions, MIRROR_WITH "      \
-                 "or MIRROR_NEXT");
-#define MIR_COUNT_WITH(node_id, prop, idx) +(DT_PROP_BY_IDX(node_id, prop, idx) == MIRROR_WITH)
-#define MIR_COUNT_NEXT(node_id, prop, idx) +(DT_PROP_BY_IDX(node_id, prop, idx) == MIRROR_NEXT)
-#define MIR_CHECK_PAIR_ADJ(i, child)                                                               \
-    BUILD_ASSERT(!(MIR_IS_SEP(MIR_PAIR_AT(child, i)) &&                                            \
-                   MIR_IS_SEP(MIR_PAIR_AT(child, UTIL_INC(i)))),                                   \
-                 "zmk,behavior-mirror: `combo-pairs` has an empty combo (two separators in a row)");
-#define MIR_PAIRS_CHECKS(child)                                                                    \
-    DT_FOREACH_PROP_ELEM(child, combo_pairs, MIR_CHECK_PAIR_ELEM)                                  \
-    BUILD_ASSERT((0 DT_FOREACH_PROP_ELEM(child, combo_pairs, MIR_COUNT_WITH)) ==                   \
-                     (0 DT_FOREACH_PROP_ELEM(child, combo_pairs, MIR_COUNT_NEXT)) + 1,             \
-                 "zmk,behavior-mirror: `combo-pairs` needs one MIRROR_WITH per pair and "          \
-                 "MIRROR_NEXT between pairs");                                                     \
-    BUILD_ASSERT(!MIR_IS_SEP(MIR_PAIR_AT(child, 0)) &&                                             \
-                     !MIR_IS_SEP(MIR_PAIR_AT(child, UTIL_DEC(DT_PROP_LEN(child, combo_pairs)))),   \
-                 "zmk,behavior-mirror: `combo-pairs` can't start or end with a separator");        \
-    LISTIFY(UTIL_DEC(DT_PROP_LEN(child, combo_pairs)), MIR_CHECK_PAIR_ADJ, (), child)
-
 #define MIR_GROUP_CHECKS(child)                                                                    \
     DT_FOREACH_PROP_ELEM(child, layers, MIR_CHECK_LAYER)                                           \
     COND_CODE_1(DT_NODE_HAS_PROP(child, excluded_positions),                                       \
-                (DT_FOREACH_PROP_ELEM(child, excluded_positions, MIR_CHECK_EXCLUDED)), ())         \
-    COND_CODE_1(DT_NODE_HAS_PROP(child, combo_pairs), (MIR_PAIRS_CHECKS(child)), ())
+                (DT_FOREACH_PROP_ELEM(child, excluded_positions, MIR_CHECK_EXCLUDED)), ())
 
 #define MIR_GROUP_EXCLUDED_ARRAY(child)                                                            \
     COND_CODE_1(DT_NODE_HAS_PROP(child, excluded_positions),                                       \
                 (static const uint8_t mir_excl_##child[] = DT_PROP(child, excluded_positions);),   \
-                ())                                                                                \
-    COND_CODE_1(DT_NODE_HAS_PROP(child, combo_pairs),                                              \
-                (static const uint32_t mir_pairs_##child[] = DT_PROP(child, combo_pairs);), ())
+                ())
 
 #define MIR_GROUP_ENTRY(child)                                                                     \
     {                                                                                              \
@@ -175,9 +148,6 @@ enum mirror_mode {
         .excluded = COND_CODE_1(DT_NODE_HAS_PROP(child, excluded_positions), (mir_excl_##child),   \
                                 (NULL)),                                                           \
         .excluded_len = DT_PROP_LEN_OR(child, excluded_positions, 0),                              \
-        .combo_pairs =                                                                             \
-            COND_CODE_1(DT_NODE_HAS_PROP(child, combo_pairs), (mir_pairs_##child), (NULL)),        \
-        .combo_pairs_len = DT_PROP_LEN_OR(child, combo_pairs, 0),                                  \
     },
 
 #define MIR_GROUP_COUNT(child) +1
@@ -194,6 +164,10 @@ enum mirror_mode {
                  "zmk,behavior-mirror: `mirror-positions` must have one entry per key position");  \
     COND_CODE_1(DT_INST_NODE_HAS_PROP(n, mirror_positions),                                        \
                 (DT_INST_FOREACH_PROP_ELEM(n, mirror_positions, MIR_CHECK_MAP_ENTRY)), ())         \
+    BUILD_ASSERT(DT_INST_PROP_LEN_OR(n, combo_positions, ZMK_KEYMAP_LEN) == ZMK_KEYMAP_LEN,        \
+                 "zmk,behavior-mirror: `combo-positions` must have one entry per key position");   \
+    COND_CODE_1(DT_INST_NODE_HAS_PROP(n, combo_positions),                                         \
+                (DT_INST_FOREACH_PROP_ELEM(n, combo_positions, MIR_CHECK_COMBO_ENTRY)), ())        \
     BUILD_ASSERT((0 DT_INST_FOREACH_CHILD(n, MIR_GROUP_COUNT)) > 0,                                \
                  "zmk,behavior-mirror: needs at least one child group with `layers`");             \
     BUILD_ASSERT((uint64_t)(0 DT_INST_FOREACH_CHILD(n, MIR_GROUP_SUM)) ==                          \
@@ -207,12 +181,18 @@ enum mirror_mode {
         DT_INST_FOREACH_CHILD(n, MIR_GROUP_ENTRY)};                                                \
     COND_CODE_1(DT_INST_NODE_HAS_PROP(n, mirror_positions),                                        \
                 (static const uint8_t mir_map_##n[] = DT_INST_PROP(n, mirror_positions);), ())     \
+    COND_CODE_1(DT_INST_NODE_HAS_PROP(n, combo_positions),                                         \
+                (static const uint8_t mir_combo_map_##n[] = DT_INST_PROP(n, combo_positions);),    \
+                ())                                                                                \
     MIR_BINDINGS_ARRAY(n, enter, mir_enter_##n)                                                    \
     MIR_BINDINGS_ARRAY(n, exit, mir_exit_##n)                                                      \
     static const struct mirror_cfg mir_cfg_##n = {                                                 \
         .index = n,                                                                                \
         .overlay_id = DT_INST_PROP(n, overlay_id),                                                 \
+        .dev = DEVICE_DT_INST_GET(n),                                                              \
         .map = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, mirror_positions), (mir_map_##n), (NULL)),     \
+        .combo_map = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, combo_positions), (mir_combo_map_##n),   \
+                                 (NULL)),                                                          \
         .groups = mir_groups_##n,                                                                  \
         .groups_len = ARRAY_SIZE(mir_groups_##n),                                                  \
         .layers = (uint32_t)(0 DT_INST_FOREACH_CHILD(n, MIR_GROUP_OR)),                            \
@@ -238,16 +218,7 @@ static uint8_t oneshot_key; /* physical key (+1) that is using up the one-shot; 
 
 static uint8_t phys_out[ZMK_KEYMAP_LEN]; /* see MIR_SWALLOWED */
 static bool out_held[ZMK_KEYMAP_LEN];    /* this position is held as some key's output */
-/* The last press that produced this position was mirrored. Kept after the release, because a
- * combo can fire on a key's release (a longer combo was still pending). */
-static bool out_last_mirrored[ZMK_KEYMAP_LEN];
 
-static struct {
-    bool armed;
-    uint32_t position;
-    bool state;
-    int64_t timestamp;
-} pass_next;
 
 /* ---- helpers --------------------------------------------------------------------------- */
 
@@ -363,114 +334,52 @@ bool zmk_mirror_mode_oneshot_armed(void) {
     return active != NULL && active_mode == MIR_MODE_ONESHOT;
 }
 
-#if IS_ENABLED(CONFIG_ZMK_MIRROR_MODE_COMBOS)
-void zmk_mirror_mode_pass_next(const struct zmk_position_state_changed *ev) {
-    pass_next.armed = true;
-    pass_next.position = ev->position;
-    pass_next.state = ev->state;
-    pass_next.timestamp = ev->timestamp;
-}
-
-/* Same set of positions (combo key-positions have no duplicates). */
-static bool mirror_same_combo(const uint32_t *member, int member_len, const int32_t *positions,
-                              int len) {
-    if (member_len != len) {
-        return false;
+/* The instance's group for the current top layer, or NULL if this instance doesn't apply. */
+static const struct mirror_group *mirror_applying_group(const struct mirror_cfg *cfg) {
+    if (cfg == NULL) {
+        return NULL;
     }
-    for (int i = 0; i < member_len; i++) {
-        bool found = false;
-        for (int j = 0; j < len && !found; j++) {
-            found = (positions[j] >= 0 && (uint32_t)positions[j] == member[i]);
-        }
-        if (!found) {
-            return false;
-        }
-    }
-    return true;
-}
-
-int zmk_mirror_mode_combo_partner(const int32_t *positions, int len, int32_t *partner, int cap) {
-    if (active == NULL || len <= 0) {
-        return 0;
-    }
-    for (int i = 0; i < len; i++) {
-        if (positions[i] < 0 || positions[i] >= ZMK_KEYMAP_LEN ||
-            !out_last_mirrored[positions[i]]) {
-            return 0; /* this combo wasn't reached through mirrored keys */
-        }
-    }
-
     zmk_keymap_layer_id_t top = zmk_keymap_layer_index_to_id(zmk_keymap_highest_layer_active());
-    const struct mirror_group *g = mirror_group_for_layer(active, top);
-    if (g == NULL || g->combo_pairs == NULL) {
-        return 0;
-    }
-
-    /* Walk <A... WITH B... (NEXT C... WITH D...)*>. */
-    const uint32_t *v = g->combo_pairs;
-    int n = g->combo_pairs_len;
-    int i = 0;
-    while (i < n) {
-        int a0 = i;
-        while (i < n && !MIR_IS_SEP(v[i])) {
-            i++;
-        }
-        int a_len = i - a0;
-        if (a_len == 0 || i >= n || v[i] != MIRROR_WITH) {
-            break;
-        }
-        i++;
-        int b0 = i;
-        while (i < n && !MIR_IS_SEP(v[i])) {
-            i++;
-        }
-        int b_len = i - b0;
-        if (b_len == 0 || (i < n && v[i] != MIRROR_NEXT)) {
-            break;
-        }
-        i++;
-
-        const uint32_t *other = NULL;
-        int other_len = 0;
-        if (mirror_same_combo(&v[a0], a_len, positions, len)) {
-            other = &v[b0];
-            other_len = b_len;
-        } else if (mirror_same_combo(&v[b0], b_len, positions, len)) {
-            other = &v[a0];
-            other_len = a_len;
-        }
-        if (other != NULL) {
-            if (other_len > cap) {
-                return 0;
-            }
-            for (int k = 0; k < other_len; k++) {
-                partner[k] = (int32_t)other[k];
-            }
-            return other_len;
-        }
-    }
-
-    if (i < n) {
-        LOG_ERR("instance %d: `combo-pairs` separators out of order at entry %d, ignored",
-                active->index, i);
-    }
-    return 0;
+    return mirror_group_for_layer(cfg, top);
 }
-#endif
+
+int32_t zmk_mirror_mode_combo_position(int32_t position) {
+    if (active == NULL || position < 0 || position >= ZMK_KEYMAP_LEN) {
+        return position;
+    }
+    const struct mirror_group *g = mirror_applying_group(active);
+    if (g == NULL || mirror_excluded(g, (uint8_t)position)) {
+        return position;
+    }
+    return active->combo_map != NULL ? active->combo_map[position]
+                                     : mirror_lookup(active, (uint8_t)position);
+}
+
+const struct device *zmk_mirror_mode_applying_instance(void) {
+    return mirror_applying_group(active) != NULL ? active->dev : NULL;
+}
+
+/* The key a press of physical key p acts as right now (p itself if not mirrored). */
+static uint8_t mirror_target(uint8_t p) {
+    const struct mirror_group *g = mirror_applying_group(active);
+    return (g != NULL && !mirror_excluded(g, p)) ? mirror_lookup(active, p) : p;
+}
+
+int32_t zmk_mirror_mode_key_position(int32_t position, bool pressed) {
+    if (position < 0 || position >= ZMK_KEYMAP_LEN) {
+        return position;
+    }
+    if (pressed) {
+        return mirror_target((uint8_t)position);
+    }
+    uint8_t s = phys_out[position];
+    return (s == 0 || s == MIR_SWALLOWED) ? position : s - 1;
+}
 
 /* ---- the position listener ------------------------------------------------------------- */
 
 static int mirror_on_press(struct zmk_position_state_changed *ev, uint8_t p) {
-    uint8_t q = p;
-
-    if (active != NULL) {
-        zmk_keymap_layer_id_t top =
-            zmk_keymap_layer_index_to_id(zmk_keymap_highest_layer_active());
-        const struct mirror_group *g = mirror_group_for_layer(active, top);
-        if (g != NULL && !mirror_excluded(g, p)) {
-            q = mirror_lookup(active, p);
-        }
-    }
+    uint8_t q = mirror_target(p);
 
     if (out_held[q]) {
         /* Rule: that key is already held through another physical key. Ignore this press
@@ -482,7 +391,6 @@ static int mirror_on_press(struct zmk_position_state_changed *ev, uint8_t p) {
 
     out_held[q] = true;
     phys_out[p] = q + 1;
-    out_last_mirrored[q] = (q != p);
 
     if (q != p) {
         LOG_DBG("position %d acts as %d", p, q);
@@ -528,15 +436,6 @@ static int mirror_position_listener(const zmk_event_t *eh) {
     struct zmk_position_state_changed *ev = as_zmk_position_state_changed(eh);
     if (ev == NULL) {
         return ZMK_EV_EVENT_BUBBLE;
-    }
-
-    if (pass_next.armed) {
-        pass_next.armed = false;
-        if (pass_next.position == ev->position && pass_next.state == ev->state &&
-            pass_next.timestamp == ev->timestamp) {
-            return ZMK_EV_EVENT_BUBBLE; /* a combo re-raise of an event already handled */
-        }
-        LOG_WRN("expected a combo re-raise of %d, got %d", pass_next.position, ev->position);
     }
 
     if (ev->position >= ZMK_KEYMAP_LEN) {

@@ -1,0 +1,20 @@
+#include "../behavior_keymap.dtsi"
+
+&mirror {
+    base {
+        excluded-positions = <9>;
+    };
+};
+
+&kscan {
+    events = <
+        /* on, 9 excluded: physical 9 stays 9 for combos too, so 9+10 (as 9 and 3) is no combo:
+           J, K */
+        ZMK_MOCK_PRESS(2,0,10)
+        ZMK_MOCK_RELEASE(2,0,10)
+        ZMK_MOCK_PRESS(2,1,10)
+        ZMK_MOCK_PRESS(2,2,100)
+        ZMK_MOCK_RELEASE(2,1,10)
+        ZMK_MOCK_RELEASE(2,2,10)
+    >;
+};

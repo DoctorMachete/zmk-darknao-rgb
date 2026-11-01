@@ -1,0 +1,7 @@
+morph: position 12 uses binding 0
+pressed: usage_page 0x07 keycode 0x08 implicit_mods 0x00 explicit_mods 0x00
+released: usage_page 0x07 keycode 0x08 implicit_mods 0x00 explicit_mods 0x00
+mirror: instance 0 on, mode 0
+morph: position 12 uses binding 1
+pressed: usage_page 0x07 keycode 0x09 implicit_mods 0x00 explicit_mods 0x00
+released: usage_page 0x07 keycode 0x09 implicit_mods 0x00 explicit_mods 0x00

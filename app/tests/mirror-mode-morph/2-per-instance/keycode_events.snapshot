@@ -1,0 +1,31 @@
+mirror: instance 0 on, mode 0
+morph: position 0 uses binding 1
+pressed: usage_page 0x07 keycode 0x05 implicit_mods 0x00 explicit_mods 0x00
+released: usage_page 0x07 keycode 0x05 implicit_mods 0x00 explicit_mods 0x00
+morph: position 1 uses binding 0
+pressed: usage_page 0x07 keycode 0x06 implicit_mods 0x00 explicit_mods 0x00
+released: usage_page 0x07 keycode 0x06 implicit_mods 0x00 explicit_mods 0x00
+morph: position 2 uses binding 1
+pressed: usage_page 0x07 keycode 0x09 implicit_mods 0x00 explicit_mods 0x00
+released: usage_page 0x07 keycode 0x09 implicit_mods 0x00 explicit_mods 0x00
+mirror: instance 0 off
+mirror: instance 1 on, mode 0
+morph: position 0 uses binding 1
+pressed: usage_page 0x07 keycode 0x05 implicit_mods 0x00 explicit_mods 0x00
+released: usage_page 0x07 keycode 0x05 implicit_mods 0x00 explicit_mods 0x00
+morph: position 1 uses binding 1
+pressed: usage_page 0x07 keycode 0x07 implicit_mods 0x00 explicit_mods 0x00
+released: usage_page 0x07 keycode 0x07 implicit_mods 0x00 explicit_mods 0x00
+morph: position 2 uses binding 2
+pressed: usage_page 0x07 keycode 0x0A implicit_mods 0x00 explicit_mods 0x00
+released: usage_page 0x07 keycode 0x0A implicit_mods 0x00 explicit_mods 0x00
+mirror: instance 1 off
+morph: position 0 uses binding 0
+pressed: usage_page 0x07 keycode 0x04 implicit_mods 0x00 explicit_mods 0x00
+released: usage_page 0x07 keycode 0x04 implicit_mods 0x00 explicit_mods 0x00
+morph: position 1 uses binding 0
+pressed: usage_page 0x07 keycode 0x06 implicit_mods 0x00 explicit_mods 0x00
+released: usage_page 0x07 keycode 0x06 implicit_mods 0x00 explicit_mods 0x00
+morph: position 2 uses binding 0
+pressed: usage_page 0x07 keycode 0x08 implicit_mods 0x00 explicit_mods 0x00
+released: usage_page 0x07 keycode 0x08 implicit_mods 0x00 explicit_mods 0x00

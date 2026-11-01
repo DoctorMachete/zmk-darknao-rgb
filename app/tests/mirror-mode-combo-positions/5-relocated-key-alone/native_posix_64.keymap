@@ -1,0 +1,12 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* on: physical 9 alone: combo candidate as 2, times out, then the key itself (mapped to
+           itself by mirror-positions): J */
+        ZMK_MOCK_PRESS(2,0,10)
+        ZMK_MOCK_RELEASE(2,0,10)
+        ZMK_MOCK_PRESS(2,1,100)
+        ZMK_MOCK_RELEASE(2,1,10)
+    >;
+};

@@ -1,0 +1,13 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* off: A C E */
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+        ZMK_MOCK_PRESS(0,1,10)
+        ZMK_MOCK_RELEASE(0,1,10)
+        ZMK_MOCK_PRESS(0,2,10)
+        ZMK_MOCK_RELEASE(0,2,10)
+    >;
+};

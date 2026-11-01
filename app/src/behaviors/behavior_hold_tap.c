@@ -16,6 +16,7 @@
 #include <zmk/endpoints.h>
 #include <zmk/event_manager.h>
 #include <zmk/events/position_state_changed.h>
+#include <zmk/mirror_mode.h> // fork: mirror mode
 #include <zmk/events/keycode_state_changed.h>
 #include <zmk/behavior.h>
 
@@ -732,8 +733,13 @@ static const struct behavior_driver_api behavior_hold_tap_driver_api = {
 
 static int position_state_changed_listener(const zmk_event_t *eh) {
     struct zmk_position_state_changed *ev = as_zmk_position_state_changed(eh);
+    // Fork: mirror mode (PATCH_MIRROR_MODE.md §3.1). Its listener runs after this one, so the
+    // event is still physical; compare against the key it will act as. Captured events keep
+    // their physical position (have_captured_keydown_event) and are mirrored when re-raised.
+    // Without mirror mode this is ev->position.
+    int32_t position = zmk_mirror_mode_key_position(ev->position, ev->state);
 
-    update_hold_status_for_retro_tap(ev->position);
+    update_hold_status_for_retro_tap(position);
 
     if (undecided_hold_tap == NULL) {
         LOG_DBG("%d bubble (no undecided hold_tap active)", ev->position);
@@ -747,10 +753,10 @@ static int position_state_changed_listener(const zmk_event_t *eh) {
         && (undecided_hold_tap->position_of_first_other_key_pressed ==
             -1) // no other key has been pressed yet
     ) {
-        undecided_hold_tap->position_of_first_other_key_pressed = ev->position;
+        undecided_hold_tap->position_of_first_other_key_pressed = position;
     }
 
-    if (undecided_hold_tap->position == ev->position) {
+    if (undecided_hold_tap->position == position) {
         if (ev->state) { // keydown
             LOG_ERR("hold-tap listener should be called before before most other listeners!");
             return ZMK_EV_EVENT_BUBBLE;

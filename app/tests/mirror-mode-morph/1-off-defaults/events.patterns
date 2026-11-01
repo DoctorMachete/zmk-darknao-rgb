@@ -1,0 +1,3 @@
+s/.*hid_listener_keycode_//p
+s/.*zmk: mirror_set_state: /mirror: /p
+s/.*on_mirror_morph_binding_pressed: mirror-morph: /morph: /p

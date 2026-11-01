@@ -1,0 +1,24 @@
+# Copyright (c) 2026 The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: |
+  Mirror-morph (fork patch, PATCH_MIRROR_MODE.md §5). Like mod-morph, but picks its binding
+  from the mirror instance that applies when the key is pressed (an instance applies while
+  it is on and the highest active layer is in one of its groups):
+    - without `instances`: bindings = <DEFAULT MIRRORED>; MIRRORED when any instance applies.
+    - with `instances = <&a &b ...>`: bindings = <DEFAULT FOR_A FOR_B ...>, one more binding
+      than instances; DEFAULT when none of the listed instances applies.
+  The release always goes to the binding that was pressed. Used to give a mirror instance
+  keys of its own, so instances can act as "virtual layers" on top of one real layer.
+
+compatible: "zmk,behavior-mirror-morph"
+
+include: zero_param.yaml
+
+properties:
+  bindings:
+    type: phandle-array
+    required: true
+  instances:
+    type: phandles
+    description: Mirror instances (zmk,behavior-mirror), in the order of bindings[1..].

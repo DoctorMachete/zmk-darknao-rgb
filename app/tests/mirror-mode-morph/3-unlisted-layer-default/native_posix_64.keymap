@@ -1,0 +1,19 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* a on, layer 1 held (in no group): A E. Released: B F */
+        ZMK_MOCK_PRESS(1,0,10)
+        ZMK_MOCK_RELEASE(1,0,10)
+        ZMK_MOCK_PRESS(1,2,10)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+        ZMK_MOCK_PRESS(0,2,10)
+        ZMK_MOCK_RELEASE(0,2,10)
+        ZMK_MOCK_RELEASE(1,2,10)
+        ZMK_MOCK_PRESS(0,0,10)
+        ZMK_MOCK_RELEASE(0,0,10)
+        ZMK_MOCK_PRESS(0,2,10)
+        ZMK_MOCK_RELEASE(0,2,10)
+    >;
+};

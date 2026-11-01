@@ -1,0 +1,14 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* on; physical 4 acts as 7, the mod-tap; physical 7 (as 4, E) decides it, although the
+           physical key is the mod-tap's own position: Shift+E, then Shift released */
+        ZMK_MOCK_PRESS(2,0,10)
+        ZMK_MOCK_RELEASE(2,0,10)
+        ZMK_MOCK_PRESS(1,0,10)
+        ZMK_MOCK_PRESS(1,3,10)
+        ZMK_MOCK_RELEASE(1,3,10)
+        ZMK_MOCK_RELEASE(1,0,10)
+    >;
+};

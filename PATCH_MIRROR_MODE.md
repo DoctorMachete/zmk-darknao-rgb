@@ -1,6 +1,6 @@
 # PATCH — mirror mode (`zmk,behavior-mirror`) + host notifier (`0xF4`)
 
-**Status: implemented and tested off-hardware, not yet flashed.** 22 native_posix cases,
+**Status: implemented and tested off-hardware, not yet flashed.** 28 native_posix cases,
 build-failure checks, a host test of the packet bytes, the full suite, and GO60 builds
 with and without zmk-raw-hid (§9).
 
@@ -8,6 +8,11 @@ A mirror mode with **no layer behind it**. While an instance is on, chosen keys 
 layers act as their mirror key, until it's switched off. It replaces hand-kept mirror
 layers (`LAYER__MIRROR`) and costs zero layers per mirrored layer. A notifier tells the
 host overlay (LayerOverlay_PEEK) which mirror is on, over Raw HID.
+
+The maps are arbitrary, so an instance is really a **relocation**: keys get one map
+(`mirror-positions`), combos their own (`combo-positions`), and `&mirror-morph` (§5) gives
+an instance keys of its own. Together they make "virtual layers": several base layouts
+that all sit in the layer-0 slot, one at a time.
 
 Spec: the side-chat handoff "Mirror mode (`&mirror`) for the GO60 fork" (2026-10-30), with
 the deviations in §8. Packet: `MIRROR_PACKET_0xF4.md` (project doc). Background:
@@ -26,6 +31,7 @@ the deviations in §8. Packet: `MIRROR_PACKET_0xF4.md` (project doc). Background
         #binding-cells = <1>;
         overlay-id = <1>;                                  // for the host overlay (§6)
         mirror-positions = <MIRROR_MAP_GO60_FROW_SWAP>;    // optional on GO60
+        combo-positions = < /* … */ >;                     // optional, §3.3
         not-press-release-outputs;                         // for &pixel / &pixlblink feedback
         enter = <&pixel PIXEL_LH_C6R4 PX_BLUE>;
         exit  = <&pixel PIXEL_LH_C6R4 (-1)>;
@@ -33,13 +39,6 @@ the deviations in §8. Packet: `MIRROR_PACKET_0xF4.md` (project doc). Background
         alphas {
             layers = <LAYER__CMKDH LAYER__ANDROID LAYER__SMSHFT_ON /* … every layer that can sit on top while typing */>;
             excluded-positions = <POS_LH_T1 POS_LH_T2 POS_LH_T3 POS_RH_T3 POS_RH_T2 POS_RH_T1>;
-            combo-pairs = <                                             // §3.3: opener/closer swap
-                POS_LH_C4R4 POS_LH_C3R4 MIRROR_WITH POS_LH_C3R4 POS_LH_C2R4    // <  >
-                MIRROR_NEXT
-                POS_RH_C2R4 POS_RH_C3R4 MIRROR_WITH POS_RH_C3R4 POS_RH_C4R4    // (  )
-                MIRROR_NEXT
-                POS_RH_C2R2 POS_RH_C3R2 MIRROR_WITH POS_RH_C3R2 POS_RH_C4R2    // [  ]
-            >;
         };
         accents {
             layers = <LAYER__ACCENTS>;
@@ -66,18 +65,19 @@ the deviations in §8. Packet: `MIRROR_PACKET_0xF4.md` (project doc). Background
 
 | property | where | default | meaning |
 |---|---|---|---|
-| `mirror-positions` | instance | GO60: `MIRROR_MAP_GO60`; elsewhere required | one entry per key position: entry *p* = the key that pressing *p* acts as. A key pointing at itself isn't mirrored. `POS_*` names work |
+| `mirror-positions` | instance | GO60: `MIRROR_MAP_GO60`; elsewhere required | one entry per key position: entry *p* = the key that pressing *p* acts as. A key pointing at itself isn't mirrored. Any relocation works, not only mirrors. `POS_*` names work |
+| `combo-positions` | instance | `mirror-positions` | same form, used only to match combos (§3.3). The identity map (`0 1 2 …`) keeps combos on their physical keys |
 | `overlay-id` | instance | 0 | id sent to the host while this instance is on (1..255). 0 = not reported: the host sees "no mirror". Give each instance its own |
 | `enter` / `exit` | instance | none | behavior chains when this instance turns on / off (also when switched away) |
 | `not-press-release-outputs`, `tap-ms`, `wait-ms` | instance | off, 5, 5 | as on caps word and the idle lock: set the first for pixel feedback (constraint #9) |
 | `layers` | each child | required | layers this group mirrors on |
-| `excluded-positions` | each child | none | keys never mirrored while one of this group's layers is on top |
-| `combo-pairs` | each child | none | combos whose outputs swap when reached through mirrored keys (§3.3) |
+| `excluded-positions` | each child | none | keys never mirrored while one of this group's layers is on top (by either map) |
 
 Map macros in `dt-bindings/zmk/mirror.h`:
 - `MIRROR_MAP_GO60` reflects each row (row 1: `11 10 … 0`), the row-5 keys and the thumbs.
 - `MIRROR_MAP_GO60_FROW_SWAP` is the same, but row 1 swaps halves in order (`6 7 8 9 10 11
-  0 1 2 3 4 5`), so F1 stays leftmost.
+  0 1 2 3 4 5`), so F1 stays leftmost. Each half keeps its order, so a row like
+  `11 10 8 9 7 6 0 1 2 3 4 5` (yours) is not this macro: write such maps out in full.
 
 GO60 key numbers: rows of 12 for rows 1–4 (0–47), row 5 = 48–53 (`LH_C4R5 LH_C3R5 LH_C2R5
 RH_C2R5 RH_C3R5 RH_C4R5`), thumbs = 54–59 (`LH_T1 LH_T2 LH_T3 RH_T3 RH_T2 RH_T1`).
@@ -111,78 +111,67 @@ RH_C2R5 RH_C3R5 RH_C4R5`), thumbs = 54–59 (`LH_T1 LH_T2 LH_T3 RH_T3 RH_T2 RH_T
 ## 3. How it works
 
 `app/src/mirror_mode.c` is a listener on `zmk_position_state_changed` that **rewrites the
-event's position in place** and bubbles it. Everything after it (hold-tap, combos, the
-keymap) sees the mirrored key. Its state is small: per physical key, what the press was
-sent as (or "ignored"); per position, whether it's held; the active instance and mode.
+event's position in place** and bubbles it. Everything after it (tap-dance, the keymap)
+sees the mirrored key. Its state is small: per physical key, what the press was sent as (or
+"ignored"); per position, whether it's held; the active instance and mode.
 
-### 3.1 ⚠️ Link order decides who sees mirrored keys
+### 3.1 ⚠️ Link order: right after combo
 
-Listeners run in link order (`PATCH_ARCHITECTURE.md` §7.1). `app/CMakeLists.txt` places the
-file by `CONFIG_ZMK_MIRROR_MODE_COMBOS`:
+Listeners run in link order (`PATCH_ARCHITECTURE.md` §7.1). `app/CMakeLists.txt` places
+`mirror_mode.c` **right after `combo.c`, before `keymap.c`**. So the events stay physical
+through the idle lock, hold-tap and combo, and each of the two that cares about positions
+asks mirror mode instead:
 
-| option | place | effect |
+| listener | asks | gets |
 |---|---|---|
-| `y` (default) | right after `layer_idle_lock.c`, ahead of hold-tap and combo | combos and hold-tap decisions see mirrored keys. The idle lock still sees physical keys (it only cares about activity) |
-| `n` | after `combo.c`, before `keymap.c` | combos keep their physical keys; hold-tap's decision logic (listed before combo) sees physical keys too. A mirrored mod-tap still works (test 6) |
+| `combo.c` (matching only) | `zmk_mirror_mode_combo_position(p)` | `combo-positions[p]` (§3.3) |
+| hold-tap | `zmk_mirror_mode_key_position(p, pressed)` | the key the event will act as: for a press, `mirror-positions[p]` now; for a release, what its press acted as |
 
-Checked on the LH build (`arm-zephyr-eabi-nm -n zmk.elf | grep zmk_event_sub_.*position`):
-`activity`, **`mirror_mode`**, `behavior_hold_tap`, `behavior_caps_word`, `behavior_tap_dance`,
-`keymap` (the stock keymap has no idle lock or combos).
+Without mirror mode both are inline functions returning `p`. Checked on the LH build
+(`arm-zephyr-eabi-nm -n zmk.elf | grep zmk_event_sub_.*position`): `activity`,
+`behavior_hold_tap`, `behavior_caps_word`, `combo`, **`mirror_mode`**,
+`behavior_tap_dance`, `keymap`.
 
-### 3.2 ⚠️ Combo re-raises
+### 3.2 Why not mirror first, and what hold-tap needs
 
-`combo.c` re-raises some captured events from the **start** of the chain: the 2nd and
-later captured presses in `release_pressed_keys()`, and a duplicate key-up in
-`position_state_up()`. With combos mirrored, those events already went through the mirror
-once. Re-mirroring them would send the twin's twin, or trip rule 3.
+An earlier version ran the mirror first, so hold-tap and combo saw mirrored events. Combo
+re-raises some captured events from the **start** of the chain, so those went through the
+mirror twice, and needed a "let the next one through" hook in `combo.c`. With the mirror
+after combo, every event is mirrored exactly once: combo's re-raises reach it once, and
+hold-tap's (`ZMK_EVENT_RAISE_AT(…, behavior_hold_tap)`) continue after hold-tap.
 
-Fix: combo calls `zmk_mirror_mode_pass_next(&event)` right before each of those two
-`ZMK_EVENT_RAISE`s, and the mirror lets the next position event through untouched. The
-raise is synchronous, and nothing ahead of the mirror captures position events, so the
-next event the mirror sees is that one. It also checks position, state and timestamp, and
-logs a warning if they don't match (never seen in any test). With mirror mode compiled
-out, or with combos not mirrored, the call is an empty inline.
+Hold-tap still has to compare positions: "is this my own key?", retro-tap, and
+`hold-trigger-key-positions`. Its binding runs at the mirrored key, the event is physical,
+so a mirrored mod-tap pressed with the key it was mirrored from (physical 4 acts as the
+mod-tap at 7, then physical 7, acting as 4) would look like its own key and never decide.
+`zmk_mirror_mode_key_position()` gives hold-tap the mirrored position for these checks
+(test `mirror-mode-combos/6`). Captured events keep their physical position and are
+mirrored when re-raised, with the state at that moment: a hold-tap whose hold is
+`&mirror_x MIRROR_MO` mirrors the key that decided it.
 
-This replaces the spec's "remember (position, timestamp, state) and let matches through"
-table. That table can't tell a re-raise from a fresh press of the twin key in the same
-millisecond, and keys read in one matrix scan share a timestamp.
+`hold-trigger-key-positions` are therefore compared as the keys act (the mirrored side),
+as before.
 
-Hold-tap re-raises with `ZMK_EVENT_RAISE_AT(…, behavior_hold_tap)`, which continues after
-hold-tap, so the mirror never sees those twice.
+### 3.3 Combos: `combo-positions`
 
-### 3.3 Combo pairs: openers and closers (`combo-pairs`)
+While an instance applies (it's on, the top layer is in one of its groups, and the key
+isn't excluded there), `combo.c` matches a press of key *p* as key `combo-positions[p]`.
+Only the matching changes: the event, its timestamp and its release stay physical, and
+whatever combo doesn't use is mirrored once, afterwards, by `mirror-positions`.
 
-Mirroring a combo's keys reaches the combo at the mirrored positions, so a combo keeps its
-output but moves to the other hand. For an opener/closer pair placed side by side (`<` on
-the outer pair, `>` on the inner pair) that reverses the reading order on the other hand.
-`combo-pairs` lists such pairs in the group; when one of them fires through mirrored keys,
-the other one's binding is used, so the opener stays on the left.
-
-```dts
-combo-pairs = <POS_LH_C4R4 POS_LH_C3R4 MIRROR_WITH POS_LH_C3R4 POS_LH_C2R4
-               MIRROR_NEXT
-               POS_RH_C2R4 POS_RH_C3R4 MIRROR_WITH POS_RH_C3R4 POS_RH_C4R4>;
-```
-
-- Each combo is written as its `key-positions`, unmirrored, exactly as in the combo (order
-  inside a combo doesn't matter). `MIRROR_WITH` separates the two combos of a pair,
-  `MIRROR_NEXT` separates pairs (both in `dt-bindings/zmk/mirror.h`). Alias them to shorter
-  names if you like, but not `____`: in the GO60 keymap that's the adaptive-sequence `_OR_`.
-- **When it swaps:** every key of the combo was last pressed *through mirroring*, and the
-  group for the current top layer lists the combo. Mirror off, an unlisted layer on top, or
-  excluded keys: no swap. That "last pressed" is remembered per position past the key's
-  release, because a combo can fire on a release (when a longer combo was still pending,
-  test 3).
-- **What swaps:** only the binding. Key matching, timeouts and `slow-release` stay the
-  combo's own, and the release goes to the binding that was pressed. The partner must be a
-  combo active on the current top layer, or nothing swaps (logged).
-- Nothing changes in the combos, the editor or the MoErgo build: the list lives in the
-  fork-only mirror node.
-- Only with `CONFIG_ZMK_MIRROR_MODE_COMBOS=y` (the default); otherwise combos aren't
-  mirrored at all.
-- `combo.c`: `active_combo` gains `behavior_idx` (the combo whose binding was pressed), set
-  by `combo_mirror_partner()`, which asks `zmk_mirror_mode_combo_partner()`. Without mirror
-  mode it's the combo itself.
+- Without `combo-positions`, combos follow `mirror-positions`: the mirrored twins of a
+  combo's keys trigger it.
+- **Openers and closers.** `<` on the outer pair, `>` on the inner pair: mirrored, the pair
+  would read `> <` on the other hand. Map those keys in order instead of reflected, so the
+  other hand's outer pair still reaches `<`. E.g. for combos on `LH_C4R4 LH_C3R4` /
+  `LH_C3R4 LH_C2R4` (38 37 / 37 36), give the right-hand keys 45 46 47 the entries
+  36 37 38 (and 38 39 40 the entries 45 46 47 for combos on the right). Nothing changes in
+  the combos, the editor or the MoErgo build.
+- **Arbitrary relocation.** Any key can join any combo: `combo-positions` entry 9 = 2 lets
+  key 9 complete a combo on 2, while the key alone still does what `mirror-positions` says.
+- **Identity map** (`0 1 2 …`): combos keep their physical keys, keys still mirror. This
+  replaces the old `CONFIG_ZMK_MIRROR_MODE_COMBOS=n`, and is per instance.
+- `combo.c`: one line in `position_state_down()` (and an include).
 
 ### 3.4 Other notes
 
@@ -195,12 +184,13 @@ combo-pairs = <POS_LH_C4R4 POS_LH_C3R4 MIRROR_WITH POS_LH_C3R4 POS_LH_C2R4
   the unmirrored layout; the `0xF4` packet is how the host overlay knows (§6).
 - A key that's `&trans` on the mirrored layer falls through at the **mirrored** key, since
   the event itself was rewritten.
+- `&mirror-morph` and anything else bound at the mirrored key sees the mirrored position.
 - Per-half RGB key-press effects see physical keys.
 
 ## 4. Build-time checks
 
-Each fails the build with a `zmk,behavior-mirror: …` message (all eleven forced on
-purpose, §9):
+Each fails the build with a `zmk,behavior-mirror: …` (or `zmk,behavior-mirror-morph: …`)
+message (all eleven forced on purpose, §9):
 
 | check | message (shortened) |
 |---|---|
@@ -211,27 +201,70 @@ purpose, §9):
 | a `layers` entry ≥ layer count | a group's `layers` entry is not a layer of this keymap |
 | an `excluded-positions` entry ≥ key count | … is not a key position |
 | no child group | needs at least one child group with `layers` |
-| a `combo-pairs` entry that's neither a key position nor a separator | entries are key positions, MIRROR_WITH or MIRROR_NEXT |
-| `MIRROR_WITH` count ≠ `MIRROR_NEXT` count + 1 | needs one MIRROR_WITH per pair and MIRROR_NEXT between pairs |
-| two separators in a row | has an empty combo |
-| a separator first or last | can't start or end with a separator |
-
-A `combo-pairs` list with the separators in the wrong order but the right counts (e.g.
-`a NEXT b WITH c WITH d`) passes the build; it's rejected when walked, with a log error,
-and no pair in that group swaps.
+| `combo-positions` length ≠ key count | `combo-positions` must have one entry per key position |
+| a `combo-positions` entry ≥ key count | a `combo-positions` entry is not a key position |
+| morph: `bindings` ≠ `instances` + 1 (2 without `instances`) | `bindings` needs one entry more than `instances` |
+| morph: an `instances` entry that isn't a mirror node | every `instances` entry must be a zmk,behavior-mirror node |
 
 The same layer in different instances is fine. Two instances sharing a non-zero
 `overlay-id` only logs a warning at boot.
 
-## 5. Kconfig
+### 4.1 Kconfig
 
 | symbol | default | meaning |
 |---|---|---|
 | `ZMK_BEHAVIOR_MIRROR` | y when a `zmk,behavior-mirror` node exists (central only) | the feature |
-| `ZMK_MIRROR_MODE_COMBOS` | y | §3.1 |
 | `ZMK_MIRROR_NOTIFIER` | y when `RAW_HID` (zmk-raw-hid) is enabled | §6 |
+| `ZMK_BEHAVIOR_MIRROR_MORPH` | y when a `zmk,behavior-mirror-morph` node exists | §5 |
+| `ZMK_BEHAVIOR_MIRROR_MORPH_MAX_HELD` | 4 | keys held at once per morph node |
 
-Without zmk-raw-hid the notifier drops out with no warnings (checked).
+`ZMK_MIRROR_MODE_COMBOS` is gone: use an identity `combo-positions` (§3.3). Without
+zmk-raw-hid the notifier drops out with no warnings (checked).
+
+## 5. `&mirror-morph`: keys of an instance's own
+
+Like mod-morph, but it picks its binding from the mirror instance that applies when the key
+is pressed (on, and the top layer in one of its groups):
+
+```dts
+#include <dt-bindings/zmk/mirror.h>
+
+/ { behaviors {
+    mm_q: mm_q {                                   // any instance: bindings[1]
+        compatible = "zmk,behavior-mirror-morph";
+        #binding-cells = <0>;
+        bindings = <&kp Q>, <&kp SEMI>;
+    };
+    mm_k: mm_k {                                   // per instance: one binding each
+        compatible = "zmk,behavior-mirror-morph";
+        #binding-cells = <0>;
+        instances = <&layout_a &layout_b>;
+        bindings = <&kp K>, <&kp E>, <&kp N>;      // default, layout_a, layout_b
+    };
+}; };
+```
+
+- Without `instances`: `bindings = <DEFAULT MIRRORED>`, the second whenever any instance
+  applies. With `instances`: one binding more than instances; an instance not in the list,
+  or none, gives the default.
+- The release goes to the binding that was pressed, kept per key position, so switching
+  instances (or a `MIRROR_MO` released first) while it's held never strands a key.
+- Works on any key, as a combo binding, and inside hold-taps, like any zero-parameter
+  behavior. On a mirrored key it is looked up at the mirrored position (where the keymap
+  has it).
+- Any behavior can be a binding (`&kp`, `&mt`, `&mo`, a macro…).
+
+**Virtual layers.** Several base layouts that all sit in the layer-0 slot: give each one an
+instance whose group lists that layer, with an identity `mirror-positions` (nothing moves)
+or a real relocation, its own `combo-positions`, and `&mirror-morph` on the keys a pure
+relocation can't express. Switch with `&layout_a MIRROR_ON`: only one instance is on at a
+time, so switching to another is one key press, and `overlay-id` tells the host overlay
+which one is on. Layers above them (NAV, SYM…) work as usual: they're either listed in a
+group (so they follow the layout) or not (so they don't).
+
+`app/src/behaviors/behavior_mirror_morph.c`, `zmk,behavior-mirror-morph.yaml`. It reads
+`zmk_mirror_mode_applying_instance()`; with mirror mode compiled out that's NULL, and
+every morph gives its default.
 
 ## 6. Host notifier: `0xF4`
 
@@ -263,27 +296,32 @@ use. Full spec for the overlay side: **`MIRROR_PACKET_0xF4.md`**.
 ## 7. Files
 
 **New:** `app/src/mirror_mode.c`, `app/src/mirror_notifier.c`,
-`app/include/dt-bindings/zmk/mirror.h`, `app/include/zmk/mirror_mode.h`,
-`app/include/zmk/events/mirror_mode_changed.h`, `app/src/events/mirror_mode_changed.c`,
-`app/dts/bindings/behaviors/zmk,behavior-mirror.yaml`, `app/tests/mirror-mode/` (11
-cases), `app/tests/mirror-mode-combos/` (6 cases), `app/tests/mirror-mode-combo-pairs/` (5
-cases), `app/tests-host/mirror-notifier/`, this doc.
-**Modified:** `app/src/combo.c` (the two `zmk_mirror_mode_pass_next()` calls, the
-`combo-pairs` swap: `behavior_idx` and `combo_mirror_partner()`, an include),
-`app/Kconfig.behaviors`, `app/CMakeLists.txt`, `PATCH_00_INDEX.md`,
+`app/src/behaviors/behavior_mirror_morph.c`, `app/include/dt-bindings/zmk/mirror.h`,
+`app/include/zmk/mirror_mode.h`, `app/include/zmk/events/mirror_mode_changed.h`,
+`app/src/events/mirror_mode_changed.c`, `app/dts/bindings/behaviors/zmk,behavior-mirror.yaml`,
+`app/dts/bindings/behaviors/zmk,behavior-mirror-morph.yaml`, `app/tests/mirror-mode/` (11
+cases), `app/tests/mirror-mode-combos/` (6), `app/tests/mirror-mode-combo-positions/` (6),
+`app/tests/mirror-mode-morph/` (5), `app/tests-host/mirror-notifier/`, this doc.
+**Modified:** `app/src/combo.c` (one line in `position_state_down()`, an include),
+`app/src/behaviors/behavior_hold_tap.c` (one line at the top of its position listener, an
+include), `app/Kconfig.behaviors`, `app/CMakeLists.txt`, `PATCH_00_INDEX.md`,
 `PATCH_ARCHITECTURE.md` (§7.1).
+**Removed (2026-11-01):** `combo-pairs`, `MIRROR_WITH` / `MIRROR_NEXT`,
+`CONFIG_ZMK_MIRROR_MODE_COMBOS`, the combo re-raise hook, `app/tests/mirror-mode-combo-pairs/`.
 
 ## 8. Deviations from the side-chat spec
 
 | spec | here | why |
 |---|---|---|
 | `mirror-map` | **`mirror-positions`** | Zephyr's devicetree generator drops every property whose name ends in `-map` (reserved for specifier maps such as `gpio-map`): `mirror-map` simply vanished from the build |
-| re-raise guard table (position, timestamp, state) | explicit hook in `combo.c` | §3.2 |
+| re-raise guard table (position, timestamp, state) | not needed: the listener runs after combo | §3.2 |
 | — | `overlay-id` | the `0xF4` notifier (the notifier handoff's proposal) |
 | — | `not-press-release-outputs`, `tap-ms`, `wait-ms` | same `enter`/`exit` model as caps word and the idle lock |
-| — | `combo-pairs` | opener/closer combos (user request, 2026-10-30); §3.3 |
+| — | `combo-positions` | combos get their own map (user request, 2026-11-01; replaces the 2026-10-30 `combo-pairs`); §3.3 |
+| — | `&mirror-morph` | per-instance keys, for virtual layers (user request, 2026-11-01); §5 |
 | optional warning if the on/off key is mirrorable | not done | can't be known statically (which layer is on top); rule 2.5 documents it |
-| per-instance combo mirroring, `idle-timeout-ms`, per-group map | not done | out of scope in the spec |
+| per-instance combo mirroring | `combo-positions` per instance | §3.3 |
+| `idle-timeout-ms`, per-group map | not done | out of scope in the spec |
 
 ## 9. Tests and verification
 
@@ -304,49 +342,63 @@ layer 2 unlisted; `enter`/`exit` are `&kp F13`–`F16` so edges show in the key 
 | `10-on-off-params` | `ON` twice, `OFF` twice: one edge each |
 | `11-oneshot-then-on` | `ON` makes a one-shot permanent |
 
-`app/tests/mirror-mode-combos/` (combos {2,3} and {1,2,3}, a mod-tap):
+`app/tests/mirror-mode-combos/` (combos {2,3} and {1,2,3}, a mod-tap; no
+`combo-positions`, so combos follow `mirror-positions`):
 
 | case | checks |
 |---|---|
 | `1-combo-mirrored` | the mirrored twins of a combo's keys trigger it |
-| `2-combo-reraise-not-mirrored-twice` | a broken 3-key combo re-raises captured events (several times, nested): none mirrored twice |
+| `2-combo-reraise-not-mirrored-twice` | a broken 3-key combo re-raises captured events (several times, nested): each mirrored once |
 | `3-combo-reraised-keyup` | combo's duplicate key-up re-raise |
 | `4-hold-tap-on-mirrored-key` | a mod-tap reached by mirroring, decided by another mirrored key |
-| `5-combos-not-mirrored-kconfig` | `CONFIG_ZMK_MIRROR_MODE_COMBOS=n`: combos keep physical keys, plain keys still mirror |
-| `6-hold-tap-combos-not-mirrored-kconfig` | the mod-tap case with `=n` |
+| `5-identity-combo-positions` | identity `combo-positions`: combos keep physical keys, plain keys still mirror |
+| `6-hold-tap-with-its-mirror-key` | the mod-tap (at 7, via physical 4) decided by physical 7: Shift+E, not E then H (§3.2) |
 
-`app/tests/mirror-mode-combo-pairs/` (`[` on {0,1}, `]` on {1,2}, paired; `Z` on {0,1,2},
-not paired; layer 1 unlisted):
+`app/tests/mirror-mode-combo-positions/` (keys reflect rows 0–1; combos keep row 0, reflect
+row 1, and keys 9/10 act as 2/3; combos {0,1}, {2,3}, {4,5}):
 
 | case | checks |
 |---|---|
-| `1-off-no-swap` | mirror off: `[` and `]` as written |
-| `2-mirrored-pair-swaps` | mirrored twins of `[` give `]`, and of `]` give `[` |
-| `3-fires-on-release-still-swapped` | the combo fires on a key's release (the 3-key combo was pending): still swapped |
-| `4-unpaired-combo-unchanged` | a mirrored combo that isn't in `combo-pairs` keeps its output |
-| `5-unlisted-layer-no-swap` | mirror on, unlisted layer on top: keys not mirrored, no swap |
+| `1-row-kept-for-combos` | physical 0+1 give combo {0,1}, not its mirror |
+| `2-single-key-still-mirrored` | a lone key: combo candidate, times out, mirrored once by `mirror-positions` |
+| `3-reflected-row-for-combos` | physical 6+7 reach {4,5}; physical 4+5 reach nothing and mirror as keys |
+| `4-arbitrary-relocation` | off: 9+10 are J K; on: they reach combo {2,3} |
+| `5-relocated-key-alone` | key 9 alone: J (its own `mirror-positions` entry) |
+| `6-excluded-key-not-relocated` | an excluded key isn't relocated for combos either |
 
-- Snapshots reviewed line by line; no unexpected-re-raise warning in any log.
-- **Mutation checks:** combo hook disabled → combo cases 2 and 3 fail; releases following
-  the current mode → case 5 fails; no "already held" rule → case 6 fails; `combo-pairs`
-  deciding from "keys still held" instead of "last pressed through mirroring" → pairs
-  case 3 fails.
-- **Build-failure checks:** each of the eleven §4 checks forced in a scratch keymap; each
-  fails with its message, and a valid control builds.
-- Upstream `app/tests/combo/` (25 cases) pass with the `combo.c` changes.
-- **Maps:** `MIRROR_MAP_GO60` equals the C default map, and is its own inverse;
-  `MIRROR_MAP_GO60_FROW_SWAP` differs only in row 1.
+`app/tests/mirror-mode-morph/` (two instances with identity maps; morphs with and without
+`instances`; a combo bound to a morph; layer 1 unlisted):
+
+| case | checks |
+|---|---|
+| `1-off-defaults` | off: every morph gives its default |
+| `2-per-instance` | A on, B on, off: each morph's binding for each |
+| `3-unlisted-layer-default` | unlisted layer on top: default; released: the instance's binding |
+| `4-switch-while-held` | switching instances, or a `MIRROR_MO` released first, while held: the pressed binding is released |
+| `5-as-combo-binding` | a morph as a combo's binding |
+
+- Snapshots reviewed line by line.
+- **Mutation checks:** releases following the current mode → case 5 fails; no "already
+  held" rule → case 6 fails (both from before); combo matching on the physical key → two
+  combo-positions cases fail; `combo-positions` ignored (→ `mirror-positions`) → two fail;
+  exclusion ignored for combos → case 6 fails; morph releasing the binding for the current
+  state → morph 4 fails; per-instance lookup always giving the first instance's binding →
+  morph 2 fails. Case `mirror-mode-combos/6` fails without the hold-tap line (that's how
+  the problem was found).
+- **Build-failure checks:** each §4 check forced in a scratch keymap (the four new ones on
+  2026-11-01); each fails with its message, and a valid control builds.
+- Upstream `app/tests/combo/` and `app/tests/hold-tap/` pass with the changes.
 - **Host test** `sh app/tests-host/mirror-notifier/run.sh`: the real packet code, copied
   verbatim; the bytes for off / on / one-shot / high layers, the padding, and the overlay's
   decode rule.
-- Full suite (`run-test.sh all`): 302 pass, 1 pending (upstream's own `pending` case), no
-  failures; 303 cases (the 281 from before plus the 22 mirror cases). Upstream's combo
-  tests are unchanged by the `combo.c` changes.
-- **GO60 builds** (stock keymap + two instances, one on the built-in map, one on
-  `MIRROR_MAP_GO60_FROW_SWAP`, a `&pixel` enter/exit, and your three bracket pairs as
-  real combos at your positions with `combo-pairs`): `go60_lh` and `go60_rh` clean; LH
-  again with your zmk-raw-hid (`aifix`) + `raw_hid_adapter`: notifier compiled in, no
-  warnings. Mirror code is absent from the RH image (central only).
+- Full suite (`run-test.sh all`, 2026-11-01): 309 cases, 308 pass, 1 pending (upstream's
+  own `pending` case), no failures.
+- **GO60 builds** (stock keymap + two instances, one on the built-in map with a full
+  `combo-positions` and your bracket combos as real combos, one on
+  `MIRROR_MAP_GO60_FROW_SWAP`, a `&pixel` enter/exit, and a `&mirror-morph` with
+  `instances` on a key): `go60_lh` and `go60_rh` clean; LH again with your zmk-raw-hid
+  (`aifix`) + `raw_hid_adapter`: notifier compiled in, no warnings. Listener order checked
+  in the LH image (§3.1). Mirror code is absent from the RH image (central only).
 - **Not done:** hardware; the notifier's timing (settle / dedupe / forced resend) has not
   been run, only built. Its bytes are tested.
 
@@ -359,8 +411,9 @@ From the side-chat comparison of `layer__MIRROR` with `layer__CMKDH`:
   (check the tab pair).
 - About 6 keys are hand-made differences (`B`/`I`/`R` vs the BBCODE / alt-tab keys,
   `&none` vs `KEY_TEST__1/2`, the TAB hold-tap at `RH_C6R2`, `LGUI K_APP` at `RH_C3R5`).
-  Mirror mode has no per-key replacement: exclude them, accept them mirrored, or wait for
-  an override feature. **Your call.**
+  Exclude them, accept them mirrored, or give them a `&mirror-morph` (§5) in the base
+  layer (fork-only, so inside `TESTGITHUB`). **Your call.**
+- Combos: replace `combo-pairs` with `combo-positions` (§3.3).
 - Then `LAYER__MIRROR` (27) can go, along with: the 22 combos listing it in `layers`; the
   `combo_combo_MIRROR_L` / `_R` bindings (→ `&mirror_full MIRROR_TOG`); its per-layer RGB
   entry; its `layer_listeners` entry. The colour comes from the instance's `enter`/`exit`.

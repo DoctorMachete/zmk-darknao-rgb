@@ -1,0 +1,12 @@
+mirror: instance 0 on, mode 0
+morph: position 2 uses binding 1
+pressed: usage_page 0x07 keycode 0x09 implicit_mods 0x00 explicit_mods 0x00
+mirror: instance 0 off
+mirror: instance 1 on, mode 0
+released: usage_page 0x07 keycode 0x09 implicit_mods 0x00 explicit_mods 0x00
+mirror: instance 1 off
+mirror: instance 0 on, mode 1
+morph: position 0 uses binding 1
+pressed: usage_page 0x07 keycode 0x05 implicit_mods 0x00 explicit_mods 0x00
+mirror: instance 0 off
+released: usage_page 0x07 keycode 0x05 implicit_mods 0x00 explicit_mods 0x00

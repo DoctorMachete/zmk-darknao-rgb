@@ -1,0 +1,12 @@
+#include "../behavior_keymap.dtsi"
+
+&kscan {
+    events = <
+        /* on: physical 0 alone is a combo candidate (as 0), times out, and the key is
+           mirrored once by mirror-positions: D */
+        ZMK_MOCK_PRESS(2,0,10)
+        ZMK_MOCK_RELEASE(2,0,10)
+        ZMK_MOCK_PRESS(0,0,100)
+        ZMK_MOCK_RELEASE(0,0,10)
+    >;
+};
